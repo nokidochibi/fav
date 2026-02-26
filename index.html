@@ -1,83 +1,251 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+    <!-- ピンチイン（ズーム）防止のためのviewport設定 -->
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>推し可視化アプリ</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>推し可視化ランキング</title>
     <style>
-        /* シンプルでモダンなスタイル */
-        body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h1 { text-align: center; font-size: 1.5rem; color: #1da1f2; }
+        /* ベーススタイル */
+        body { 
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; 
+            background: #f0f2f5; 
+            margin: 0; 
+            padding: 0; 
+            color: #333; 
+            /* 下部タブの高さ分だけ余白を空ける */
+            padding-bottom: 70px; 
+            -webkit-text-size-adjust: 100%;
+        }
         
-        /* タブ切り替え */
-        .tabs { display: flex; border-bottom: 2px solid #ddd; margin-bottom: 20px; }
-        .tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; font-weight: bold; color: #888; }
-        .tab.active { border-bottom: 2px solid #1da1f2; color: #1da1f2; }
-        .content { display: none; }
+        .header {
+            background: white;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .header h1 { margin: 0; font-size: 1.2rem; color: #1da1f2; }
+
+        .container { padding: 20px; max-width: 600px; margin: 0 auto; }
+        
+        /* コンテンツエリアの切り替え */
+        .content { display: none; animation: fadeIn 0.3s ease; }
         .content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* 入力フォーム */
-        input[type="text"] { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #1da1f2; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        button:hover { background: #0c85d0; }
-        .msg { margin-top: 10px; text-align: center; font-size: 0.9rem; }
+        /* 入力フォーム (ピンチイン防止のため font-size: 16px は必須) */
+        input[type="text"] { 
+            width: 100%; 
+            padding: 15px; 
+            margin-bottom: 15px; 
+            border: 1px solid #ccc; 
+            border-radius: 8px; 
+            box-sizing: border-box; 
+            font-size: 16px; 
+            background: white;
+        }
+        button.primary-btn { 
+            width: 100%; 
+            padding: 15px; 
+            background: #1da1f2; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            box-shadow: 0 4px 6px rgba(29, 161, 242, 0.2);
+        }
+        button.primary-btn:active { transform: scale(0.98); }
+        .msg { margin-top: 15px; text-align: center; font-size: 14px; min-height: 20px;}
 
-        /* 可視化エリア */
-        #chart-area { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin-top: 20px; }
-        .bubble {
+        /* ランキングUI */
+        .ranking-list { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
+        .ranking-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .ranking-item:active { background: #f8f9fa; }
+        .rank { font-size: 1.2rem; font-weight: bold; width: 35px; color: #888; text-align: center; }
+        .rank-1 { color: #ffd700; font-size: 1.5rem; } /* 1位は金 */
+        .rank-2 { color: #c0c0c0; font-size: 1.4rem; } /* 2位は銀 */
+        .rank-3 { color: #cd7f32; font-size: 1.3rem; } /* 3位は銅 */
+        
+        .icon {
+            width: 45px;
+            height: 45px;
             border-radius: 50%;
+            margin-right: 15px;
+            background-color: #eee;
             background-size: cover;
             background-position: center;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            transition: transform 0.2s;
-            border: 3px solid white;
+            border: 1px solid #eaeaea;
         }
-        .bubble:hover { transform: scale(1.1); z-index: 10; }
-        .bubble-badge {
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            background: #ff4757;
+        .user-info { flex: 1; overflow: hidden; }
+        .user-id { font-weight: bold; font-size: 16px; margin: 0; color: #141619; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;}
+        .count-badge {
+            background: #1da1f2;
             color: white;
-            font-size: 0.8rem;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 2px solid white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 14px;
             font-weight: bold;
+        }
+
+        /* 下部タブナビゲーション */
+        .bottom-nav { 
+            position: fixed; 
+            bottom: 0; 
+            left: 0; 
+            width: 100%; 
+            background: white; 
+            display: flex; 
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+            padding-bottom: env(safe-area-inset-bottom); /* iPhone X以降のホームバー対応 */
+            z-index: 100;
+        }
+        .nav-item { 
+            flex: 1; 
+            text-align: center; 
+            padding: 15px 0; 
+            color: #888; 
+            cursor: pointer; 
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        .nav-item.active { color: #1da1f2; font-weight: bold; }
+        .nav-icon { font-size: 20px; }
+
+        /* モーダル (ポスト一覧) */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            box-sizing: border-box;
+            backdrop-filter: blur(2px);
+        }
+        .modal-content {
+            background: white;
+            width: 100%;
+            max-width: 400px;
+            max-height: 80vh;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .modal-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h2 { margin: 0; font-size: 1.1rem; }
+        .close-btn { background: none; border: none; font-size: 24px; color: #888; cursor: pointer; padding: 0; }
+        
+        .modal-body {
+            padding: 0;
+            overflow-y: auto;
+        }
+        .post-list { list-style: none; padding: 0; margin: 0; }
+        .post-list li { border-bottom: 1px solid #f0f0f0; }
+        .post-list a {
+            display: block;
+            padding: 15px 20px;
+            text-decoration: none;
+            color: #1da1f2;
+            font-size: 15px;
+        }
+        .post-list a:hover, .post-list a:active { background: #f8f9fa; }
+        .post-list span.date { display: block; font-size: 12px; color: #888; margin-top: 4px; }
+        
+        /* 更新ボタン */
+        .refresh-btn {
+            background: #fff;
+            border: 1px solid #1da1f2;
+            color: #1da1f2;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            display: block;
+            margin: 0 auto;
         }
     </style>
 </head>
 <body>
 
+<div class="header">
+    <h1>🏆 推しユーザーランキング</h1>
+</div>
+
 <div class="container">
-    <h1>🏆 推しユーザー可視化</h1>
-
-    <div class="tabs">
-        <div class="tab active" onclick="switchTab('register')">登録</div>
-        <div class="tab" onclick="switchTab('visualize')">確認</div>
-    </div>
-
+    <!-- 登録タブ -->
     <div id="register" class="content active">
-        <p>お気に入りのポストURLを登録しよう</p>
+        <p style="color: #666; margin-bottom: 20px;">お気に入りのポストURLを貼り付けて登録しましょう。</p>
         <input type="text" id="postUrl" placeholder="https://x.com/user/status/123..." />
-        <button onclick="registerData()">登録する</button>
+        <button class="primary-btn" onclick="registerData()">登録する</button>
         <div id="regMsg" class="msg"></div>
     </div>
 
+    <!-- 確認(ランキング)タブ -->
     <div id="visualize" class="content">
-        <p>よく登録されているユーザー順（アイコンの大きさ＝数）</p>
-        <button onclick="loadData()">データを更新</button>
-        <div id="chart-area">
-            </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <p style="margin: 0; color: #666; font-size: 14px;">登録数が多い順</p>
+            <button class="refresh-btn" onclick="loadData()">🔄 更新</button>
+        </div>
+        <div id="ranking-container" class="ranking-list">
+            <!-- ここにランキングが生成されます -->
+            <div style="text-align: center; padding: 20px; color: #888;">データを読み込んでいます...</div>
+        </div>
+    </div>
+</div>
+
+<!-- 下部タブナビゲーション -->
+<div class="bottom-nav">
+    <div class="nav-item active" onclick="switchTab('register', this)">
+        <span class="nav-icon">➕</span>
+        <span>登録</span>
+    </div>
+    <div class="nav-item" onclick="switchTab('visualize', this)">
+        <span class="nav-icon">👑</span>
+        <span>ランキング</span>
+    </div>
+</div>
+
+<!-- ポスト一覧モーダル -->
+<div id="postModal" class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2 id="modalTitle">@userid のポスト</h2>
+            <button class="close-btn" onclick="closeModal(event)">&times;</button>
+        </div>
+        <div class="modal-body">
+            <ul id="modalList" class="post-list">
+                <!-- ポストURLがここに入ります -->
+            </ul>
+        </div>
     </div>
 </div>
 
@@ -87,111 +255,155 @@
     const GAS_URL = "https://script.google.com/macros/s/AKfycbz0Nj77dTOz9RT4UKd8swnzxGMZKwgI5L3mZboIzwaNIi2IMLwoAZqGt1FrH6dk0nHS6Q/exec";
     // ==========================================
 
-    // タブ切り替え機能
-    function switchTab(tabName) {
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
-        
-        // 選択されたタブをアクティブに
-        const tabIndex = tabName === 'register' ? 0 : 1;
-        document.querySelectorAll('.tab')[tabIndex].classList.add('active');
-        document.getElementById(tabName).classList.add('active');
+    let globalRankingData = []; // モーダル表示用にデータを保持
 
-        if(tabName === 'visualize') loadData();
+    // タブ切り替え機能
+    function switchTab(tabName, element) {
+        // コンテンツの切り替え
+        document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+        document.getElementById(tabName).classList.add('active');
+        
+        // ナビゲーションの見た目切り替え
+        document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
+        element.classList.add('active');
+
+        // ランキングタブを開いた時は自動でデータ読み込み
+        if(tabName === 'visualize') {
+            loadData();
+        }
     }
 
     // データ登録機能
     function registerData() {
         const urlInput = document.getElementById('postUrl');
-        const url = urlInput.value;
+        const url = urlInput.value.trim();
         const msg = document.getElementById('regMsg');
 
-        // URLからユーザーIDを抽出する正規表現
         // x.com または twitter.com の後の最初の文字列を取得
-        const match = url.match(/(x\.com|twitter\.com)\/([^\/]+)\/status/);
+        const match = url.match(/(?:x\.com|twitter\.com)\/([^\/]+)\/status/);
         
-        if (!match || !match[2]) {
-            msg.textContent = "⚠️ 正しいX(Twitter)のURLを入力してください";
-            msg.style.color = "red";
+        if (!match || !match[1]) {
+            msg.textContent = "⚠️ 正しいX(Twitter)のポストURLを入力してください";
+            msg.style.color = "#e0245e"; // Twitterの赤エラー色
             return;
         }
 
-        const userId = match[2];
-        msg.textContent = "送信中...";
+        const userId = match[1];
+        msg.textContent = "⏳ 送信中...";
         msg.style.color = "#666";
 
-        // GASへ送信
         fetch(GAS_URL, {
             method: 'POST',
-            mode: 'no-cors', // CORSエラー回避のおまじない
+            mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({ userId: userId, url: url })
         }).then(() => {
-            msg.textContent = `✅ @${userId} さんを登録しました！`;
-            msg.style.color = "green";
+            msg.textContent = `✅ @${userId} さんのポストを登録しました！`;
+            msg.style.color = "#17bf63";
             urlInput.value = ""; // 入力欄クリア
         }).catch(err => {
-            msg.textContent = "エラーが発生しました";
+            msg.textContent = "❌ エラーが発生しました";
+            msg.style.color = "#e0245e";
             console.error(err);
         });
     }
 
-    // データ読み込み＆可視化機能
+    // データ読み込み＆ランキング生成機能
     async function loadData() {
-        const chartArea = document.getElementById('chart-area');
-        chartArea.innerHTML = "読み込み中...";
+        const container = document.getElementById('ranking-container');
+        container.innerHTML = "<div style='text-align: center; padding: 20px; color: #888;'>読み込み中...</div>";
 
         try {
             const res = await fetch(GAS_URL);
             const data = await res.json();
 
-            // 集計ロジック（ユーザーIDごとにカウント）
-            const counts = {};
+            // ユーザーIDごとにグループ化（カウントとURLリストをまとめる）
+            const userMap = {};
             data.forEach(item => {
-                counts[item.userId] = (counts[item.userId] || 0) + 1;
+                if (!userMap[item.userId]) {
+                    userMap[item.userId] = { count: 0, urls: [], dates: [] };
+                }
+                userMap[item.userId].count += 1;
+                userMap[item.userId].urls.push(item.url);
+                userMap[item.userId].dates.push(item.date);
             });
 
+            // ランキング配列に変換してカウント順にソート
+            globalRankingData = Object.keys(userMap)
+                .map(userId => ({
+                    userId: userId,
+                    count: userMap[userId].count,
+                    urls: userMap[userId].urls,
+                    dates: userMap[userId].dates
+                }))
+                .sort((a, b) => b.count - a.count);
+
             // HTML生成
-            chartArea.innerHTML = "";
+            container.innerHTML = "";
             
-            // カウントが多い順にソートして表示
-            Object.keys(counts)
-                .sort((a, b) => counts[b] - counts[a])
-                .forEach(userId => {
-                    const count = counts[userId];
-                    const bubble = document.createElement('div');
-                    bubble.className = 'bubble';
-                    
-                    // サイズ計算 (最小60px + カウント数 * 10px)
-                    const size = 60 + (count * 10); 
-                    bubble.style.width = `${size}px`;
-                    bubble.style.height = `${size}px`;
-                    
-                    // unavatar.io を使ってアイコン取得
-                    bubble.style.backgroundImage = `url(https://unavatar.io/twitter/${userId})`;
-                    
-                    // カウントバッジ
-                    const badge = document.createElement('div');
-                    badge.className = 'bubble-badge';
-                    badge.innerText = count;
-                    
-                    bubble.appendChild(badge);
-                    
-                    // クリックでその人のTwitterへ
-                    bubble.onclick = () => window.open(`https://x.com/${userId}`, '_blank');
-                    bubble.title = `@${userId}: ${count}件`; // ホバーでID表示
-
-                    chartArea.appendChild(bubble);
-                });
-
-            if (Object.keys(counts).length === 0) {
-                chartArea.innerHTML = "データがありません";
+            if (globalRankingData.length === 0) {
+                container.innerHTML = "<div style='text-align: center; padding: 20px; color: #888;'>まだ登録データがありません</div>";
+                return;
             }
 
+            globalRankingData.forEach((user, index) => {
+                const rankNum = index + 1;
+                let rankClass = "";
+                if (rankNum === 1) rankClass = "rank-1";
+                if (rankNum === 2) rankClass = "rank-2";
+                if (rankNum === 3) rankClass = "rank-3";
+
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'ranking-item';
+                // 行をタップしたらモーダルを開く
+                itemDiv.onclick = () => openModal(user.userId);
+
+                itemDiv.innerHTML = `
+                    <div class="rank ${rankClass}">${rankNum}</div>
+                    <div class="icon" style="background-image: url('https://unavatar.io/twitter/${user.userId}');"></div>
+                    <div class="user-info">
+                        <p class="user-id">@${user.userId}</p>
+                    </div>
+                    <div class="count-badge">${user.count}件</div>
+                `;
+                container.appendChild(itemDiv);
+            });
+
         } catch (err) {
-            chartArea.innerHTML = "データの取得に失敗しました";
+            container.innerHTML = "<div style='text-align: center; padding: 20px; color: #e0245e;'>データの取得に失敗しました</div>";
             console.error(err);
         }
+    }
+
+    // モーダルを開く処理
+    function openModal(userId) {
+        const user = globalRankingData.find(u => u.userId === userId);
+        if(!user) return;
+
+        document.getElementById('modalTitle').textContent = `@${userId} のお気に入りポスト`;
+        const listContainer = document.getElementById('modalList');
+        listContainer.innerHTML = '';
+
+        // URLリストを生成
+        user.urls.forEach((url, i) => {
+            const dateStr = user.dates[i] ? new Date(user.dates[i]).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' }) : '';
+            
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <a href="${url}" target="_blank" rel="noopener noreferrer">
+                    🔗 ポストを見る (${i + 1}件目)
+                    <span class="date">登録日: ${dateStr}</span>
+                </a>
+            `;
+            listContainer.appendChild(li);
+        });
+
+        document.getElementById('postModal').style.display = 'flex';
+    }
+
+    // モーダルを閉じる処理
+    function closeModal(event) {
+        document.getElementById('postModal').style.display = 'none';
     }
 </script>
 
