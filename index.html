@@ -7,7 +7,7 @@
     
     <!-- ▼ GASのウェブアプリURLはここに貼ってください (一番上に移動しました) ▼ -->
     <script>
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbwGqj85h341pIydj2nY-ZhwQp4s0lsnMzb35jYwkwLNdp_43xhz5ms4AtaioKT36X3n5Q/exec";
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbxnzWefcMErpoutRhANW4zZdC8gCYK5yHXx27L9WFH-6c4X-cvXt2kKxn3sLWFmlpzdww/exec";
     </script>
     <!-- ▲ ここまで ▲ -->
 
@@ -353,6 +353,7 @@
                 if (!userMap[item.userId]) { userMap[item.userId] = { count: 0, posts: [] }; }
                 userMap[item.userId].count += 1;
                 userMap[item.userId].posts.push({
+                    row: item.row, // GASから送られてきた「行番号」を保存
                     url: item.url.replace('x.com', 'twitter.com'), 
                     regDate: new Date(item.date),
                     tweetId: tweetId,
@@ -444,14 +445,12 @@
         filteredPosts.forEach(p => {
             const regDateStr = p.regDate.toLocaleDateString('ja-JP');
             const postDateStr = p.postDate ? p.postDate.toLocaleDateString('ja-JP') : '不明';
-            // 登録日時(ISO文字列)も特定用に保持
-            const regIso = p.regDate.toISOString();
             const wrapper = document.createElement('div');
             wrapper.className = 'tweet-wrapper';
             wrapper.innerHTML = `
                 <div class="tweet-meta" style="display: flex; justify-content: space-between; align-items: center;">
                     <span>登録日: ${regDateStr} / 投稿日: ${postDateStr}</span>
-                    <button onclick="deletePost('${p.url}', '${regIso}', this)" style="background:none; border:none; color:#e0245e; cursor:pointer; font-size:12px; font-weight:bold; padding: 2px 6px;">🗑️削除</button>
+                    <button onclick="deletePost('${p.url}', ${p.row}, this)" style="background:none; border:none; color:#e0245e; cursor:pointer; font-size:12px; font-weight:bold; padding: 2px 6px;">🗑️削除</button>
                 </div>
                 <blockquote class="twitter-tweet" data-dnt="true" data-theme="light"><a href="${p.url}"></a></blockquote>
             `;
@@ -463,23 +462,23 @@
         }
     }
 
-    async function deletePost(url, regIso, btnElement) {
+    async function deletePost(url, row, btnElement) {
         if(!confirm("このポストの登録を解除（削除）しますか？")) return;
         
         btnElement.innerText = "削除中...";
         btnElement.disabled = true;
 
         try {
-            // GASへ削除リクエスト送信 (登録日時も含めて送る)
+            // GASへ削除リクエスト送信 (行番号を含めて送る)
             await fetch(GAS_URL, {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: "delete_post", secretId: mySecretId, url: url, regDate: regIso })
+                body: JSON.stringify({ action: "delete_post", secretId: mySecretId, url: url, row: row })
             });
             
-            // 画面上のデータからも削除 (URLと登録日時の両方が一致するものだけ消す)
-            currentModalUser.posts = currentModalUser.posts.filter(p => !(p.url === url && p.regDate.toISOString() === regIso));
+            // 画面上のデータから削除 (行番号が一致するものだけ消す)
+            currentModalUser.posts = currentModalUser.posts.filter(p => p.row !== row);
             
             if(currentModalUser.posts.length === 0) {
                 // ポストが0件になったらモーダルを閉じる
