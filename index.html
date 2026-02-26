@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <!-- ピンチイン（ズーム）防止のためのviewport設定 -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>推し可視化ランキング</title>
+    <!-- Twitterウィジェット用のスクリプト -->
+    <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
     <style>
         /* ベーススタイル */
         body { 
@@ -13,11 +14,29 @@
             margin: 0; 
             padding: 0; 
             color: #333; 
-            /* 下部タブの高さ分だけ余白を空ける */
             padding-bottom: 70px; 
             -webkit-text-size-adjust: 100%;
+            overscroll-behavior-y: none; /* デフォルトのPull-to-refreshを無効化 */
         }
         
+        /* Pull to Refresh インジケーター */
+        #ptr-indicator {
+            position: fixed;
+            top: 50px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            color: #888;
+            font-size: 14px;
+            z-index: 5;
+            opacity: 0;
+            pointer-events: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
         .header {
             background: white;
             padding: 15px;
@@ -29,34 +48,20 @@
         }
         .header h1 { margin: 0; font-size: 1.2rem; color: #1da1f2; }
 
-        .container { padding: 20px; max-width: 600px; margin: 0 auto; }
+        .container { padding: 20px; max-width: 600px; margin: 0 auto; position: relative; z-index: 10;}
         
-        /* コンテンツエリアの切り替え */
         .content { display: none; animation: fadeIn 0.3s ease; }
         .content.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* 入力フォーム (ピンチイン防止のため font-size: 16px は必須) */
+        /* 入力フォーム */
         input[type="text"] { 
-            width: 100%; 
-            padding: 15px; 
-            margin-bottom: 15px; 
-            border: 1px solid #ccc; 
-            border-radius: 8px; 
-            box-sizing: border-box; 
-            font-size: 16px; 
-            background: white;
+            width: 100%; padding: 15px; margin-bottom: 15px; border: 1px solid #ccc; 
+            border-radius: 8px; box-sizing: border-box; font-size: 16px; background: white;
         }
         button.primary-btn { 
-            width: 100%; 
-            padding: 15px; 
-            background: #1da1f2; 
-            color: white; 
-            border: none; 
-            border-radius: 8px; 
-            font-size: 16px; 
-            font-weight: bold; 
-            cursor: pointer; 
+            width: 100%; padding: 15px; background: #1da1f2; color: white; border: none; 
+            border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; 
             box-shadow: 0 4px 6px rgba(29, 161, 242, 0.2);
         }
         button.primary-btn:active { transform: scale(0.98); }
@@ -65,143 +70,74 @@
         /* ランキングUI */
         .ranking-list { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
         .ranking-item {
-            display: flex;
-            align-items: center;
-            padding: 15px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            cursor: pointer;
-            transition: background 0.2s;
+            display: flex; align-items: center; padding: 15px; background: white;
+            border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); cursor: pointer;
         }
         .ranking-item:active { background: #f8f9fa; }
         .rank { font-size: 1.2rem; font-weight: bold; width: 35px; color: #888; text-align: center; }
-        .rank-1 { color: #ffd700; font-size: 1.5rem; } /* 1位は金 */
-        .rank-2 { color: #c0c0c0; font-size: 1.4rem; } /* 2位は銀 */
-        .rank-3 { color: #cd7f32; font-size: 1.3rem; } /* 3位は銅 */
+        .rank-1 { color: #ffd700; font-size: 1.5rem; }
+        .rank-2 { color: #c0c0c0; font-size: 1.4rem; }
+        .rank-3 { color: #cd7f32; font-size: 1.3rem; }
         
         .icon {
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            margin-right: 15px;
-            background-color: #eee;
-            background-size: cover;
-            background-position: center;
-            border: 1px solid #eaeaea;
+            width: 45px; height: 45px; border-radius: 50%; margin-right: 15px;
+            background-color: #eee; background-size: cover; background-position: center; border: 1px solid #eaeaea;
         }
         .user-info { flex: 1; overflow: hidden; }
         .user-id { font-weight: bold; font-size: 16px; margin: 0; color: #141619; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;}
-        .count-badge {
-            background: #1da1f2;
-            color: white;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: bold;
-        }
+        .count-badge { background: #1da1f2; color: white; padding: 4px 10px; border-radius: 20px; font-size: 14px; font-weight: bold; }
 
-        /* 下部タブナビゲーション */
+        /* 下部タブ */
         .bottom-nav { 
-            position: fixed; 
-            bottom: 0; 
-            left: 0; 
-            width: 100%; 
-            background: white; 
-            display: flex; 
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
-            padding-bottom: env(safe-area-inset-bottom); /* iPhone X以降のホームバー対応 */
-            z-index: 100;
+            position: fixed; bottom: 0; left: 0; width: 100%; background: white; 
+            display: flex; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); padding-bottom: env(safe-area-inset-bottom); z-index: 100;
         }
-        .nav-item { 
-            flex: 1; 
-            text-align: center; 
-            padding: 15px 0; 
-            color: #888; 
-            cursor: pointer; 
-            font-size: 14px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-        }
+        .nav-item { flex: 1; text-align: center; padding: 15px 0; color: #888; cursor: pointer; font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
         .nav-item.active { color: #1da1f2; font-weight: bold; }
         .nav-icon { font-size: 20px; }
 
-        /* モーダル (ポスト一覧) */
+        /* モーダル */
         .modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            box-sizing: border-box;
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: flex-end; /* 下から出す */
             backdrop-filter: blur(2px);
         }
         .modal-content {
-            background: white;
-            width: 100%;
-            max-width: 400px;
-            max-height: 80vh;
-            border-radius: 16px;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            animation: slideUp 0.3s ease;
+            background: #f0f2f5; width: 100%; max-width: 600px; height: 85vh;
+            border-radius: 16px 16px 0 0; display: flex; flex-direction: column;
+            box-shadow: 0 -5px 25px rgba(0,0,0,0.2); animation: slideUp 0.3s ease;
         }
-        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         
-        .modal-header {
-            padding: 15px 20px;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+        .modal-header { padding: 15px 20px; background: white; border-radius: 16px 16px 0 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; }
         .modal-header h2 { margin: 0; font-size: 1.1rem; }
         .close-btn { background: none; border: none; font-size: 24px; color: #888; cursor: pointer; padding: 0; }
         
-        .modal-body {
-            padding: 0;
-            overflow-y: auto;
-        }
-        .post-list { list-style: none; padding: 0; margin: 0; }
-        .post-list li { border-bottom: 1px solid #f0f0f0; }
-        .post-list a {
-            display: block;
-            padding: 15px 20px;
-            text-decoration: none;
-            color: #1da1f2;
-            font-size: 15px;
-        }
-        .post-list a:hover, .post-list a:active { background: #f8f9fa; }
-        .post-list span.date { display: block; font-size: 12px; color: #888; margin-top: 4px; }
+        /* フィルタ＆ソートコントロール */
+        .modal-controls { background: white; padding: 10px 20px; display: flex; gap: 10px; border-bottom: 1px solid #eee; }
+        .modal-controls select { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; background: #fff; }
+
+        .modal-body { padding: 15px; overflow-y: auto; flex: 1; }
         
-        /* 更新ボタン */
-        .refresh-btn {
-            background: #fff;
-            border: 1px solid #1da1f2;
-            color: #1da1f2;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            cursor: pointer;
-            display: block;
-            margin: 0 auto;
+        .tweet-wrapper {
+            background: white; border-radius: 12px; margin-bottom: 15px; padding: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
+        .tweet-meta { font-size: 11px; color: #888; text-align: right; padding-right: 10px; padding-bottom: 5px; border-bottom: 1px dashed #eee; margin-bottom: 5px;}
     </style>
 </head>
 <body>
+
+<div id="ptr-indicator">
+    <span id="ptr-icon">↓</span>
+    <span id="ptr-text">引っ張って更新</span>
+</div>
 
 <div class="header">
     <h1>🏆 推しユーザーランキング</h1>
 </div>
 
-<div class="container">
-    <!-- 登録タブ -->
+<div class="container" id="main-container">
     <div id="register" class="content active">
         <p style="color: #666; margin-bottom: 20px;">お気に入りのポストURLを貼り付けて登録しましょう。</p>
         <input type="text" id="postUrl" placeholder="https://x.com/user/status/123..." />
@@ -209,28 +145,23 @@
         <div id="regMsg" class="msg"></div>
     </div>
 
-    <!-- 確認(ランキング)タブ -->
     <div id="visualize" class="content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <p style="margin: 0; color: #666; font-size: 14px;">登録数が多い順</p>
-            <button class="refresh-btn" onclick="loadData()">🔄 更新</button>
+            <p style="margin: 0; color: #888; font-size: 12px;">※下に引っ張って更新</p>
         </div>
         <div id="ranking-container" class="ranking-list">
-            <!-- ここにランキングが生成されます -->
             <div style="text-align: center; padding: 20px; color: #888;">データを読み込んでいます...</div>
         </div>
     </div>
 </div>
 
-<!-- 下部タブナビゲーション -->
 <div class="bottom-nav">
     <div class="nav-item active" onclick="switchTab('register', this)">
-        <span class="nav-icon">➕</span>
-        <span>登録</span>
+        <span class="nav-icon">➕</span><span>登録</span>
     </div>
     <div class="nav-item" onclick="switchTab('visualize', this)">
-        <span class="nav-icon">👑</span>
-        <span>ランキング</span>
+        <span class="nav-icon">👑</span><span>ランキング</span>
     </div>
 </div>
 
@@ -241,54 +172,64 @@
             <h2 id="modalTitle">@userid のポスト</h2>
             <button class="close-btn" onclick="closeModal(event)">&times;</button>
         </div>
-        <div class="modal-body">
-            <ul id="modalList" class="post-list">
-                <!-- ポストURLがここに入ります -->
-            </ul>
+        <div class="modal-controls">
+            <select id="sortSelect" onchange="renderModalList()">
+                <option value="reg_desc">登録日: 新しい順</option>
+                <option value="reg_asc">登録日: 古い順</option>
+                <option value="post_desc" selected>投稿日: 新しい順</option>
+                <option value="post_asc">投稿日: 古い順</option>
+            </select>
+            <select id="filterSelect" onchange="renderModalList()">
+                <option value="all">すべての月</option>
+                <!-- 動的に追加 -->
+            </select>
+        </div>
+        <div class="modal-body" id="modalList">
+            <!-- ツイートがここに入ります -->
         </div>
     </div>
 </div>
 
 <script>
-    // ==========================================
-    // ▼ ここにGASのウェブアプリURLを貼ってください ▼
+    // 指定されたウェブアプリURL
     const GAS_URL = "https://script.google.com/macros/s/AKfycbz0Nj77dTOz9RT4UKd8swnzxGMZKwgI5L3mZboIzwaNIi2IMLwoAZqGt1FrH6dk0nHS6Q/exec";
-    // ==========================================
 
-    let globalRankingData = []; // モーダル表示用にデータを保持
+    let globalRankingData = []; 
+    let currentModalUser = null;
 
-    // タブ切り替え機能
-    function switchTab(tabName, element) {
-        // コンテンツの切り替え
-        document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
-        document.getElementById(tabName).classList.add('active');
-        
-        // ナビゲーションの見た目切り替え
-        document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
-        element.classList.add('active');
-
-        // ランキングタブを開いた時は自動でデータ読み込み
-        if(tabName === 'visualize') {
-            loadData();
+    // --- ツイートIDから日時を計算する魔法の関数 (Snowflake) ---
+    function getTweetDateFromId(tweetId) {
+        try {
+            const idBigInt = BigInt(tweetId);
+            const timestamp = Number(idBigInt >> 22n) + 1288834974657;
+            return new Date(timestamp);
+        } catch(e) {
+            return null;
         }
     }
 
-    // データ登録機能
+    // タブ切り替え
+    function switchTab(tabName, element) {
+        document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+        document.getElementById(tabName).classList.add('active');
+        document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
+        element.classList.add('active');
+        if(tabName === 'visualize') loadData();
+    }
+
+    // データ登録
     function registerData() {
         const urlInput = document.getElementById('postUrl');
         const url = urlInput.value.trim();
         const msg = document.getElementById('regMsg');
-
-        // x.com または twitter.com の後の最初の文字列を取得
         const match = url.match(/(?:x\.com|twitter\.com)\/([^\/]+)\/status/);
         
         if (!match || !match[1]) {
             msg.textContent = "⚠️ 正しいX(Twitter)のポストURLを入力してください";
-            msg.style.color = "#e0245e"; // Twitterの赤エラー色
+            msg.style.color = "#e0245e";
             return;
         }
 
-        const userId = match[1];
         msg.textContent = "⏳ 送信中...";
         msg.style.color = "#666";
 
@@ -296,51 +237,51 @@
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ userId: userId, url: url })
+            body: JSON.stringify({ userId: match[1], url: url })
         }).then(() => {
-            msg.textContent = `✅ @${userId} さんのポストを登録しました！`;
+            msg.textContent = `✅ @${match[1]} さんのポストを登録しました！`;
             msg.style.color = "#17bf63";
-            urlInput.value = ""; // 入力欄クリア
+            urlInput.value = ""; 
         }).catch(err => {
             msg.textContent = "❌ エラーが発生しました";
             msg.style.color = "#e0245e";
-            console.error(err);
         });
     }
 
-    // データ読み込み＆ランキング生成機能
+    // データ読み込み＆ランキング生成
     async function loadData() {
         const container = document.getElementById('ranking-container');
-        container.innerHTML = "<div style='text-align: center; padding: 20px; color: #888;'>読み込み中...</div>";
+        if(container.innerHTML.indexOf("読み込んでいます") > -1) {
+            // 初回のみ表示
+        }
 
         try {
             const res = await fetch(GAS_URL);
             const data = await res.json();
 
-            // ユーザーIDごとにグループ化（カウントとURLリストをまとめる）
             const userMap = {};
             data.forEach(item => {
+                const tweetIdMatch = item.url.match(/\/status\/(\d+)/);
+                const tweetId = tweetIdMatch ? tweetIdMatch[1] : "0";
+                const postDate = getTweetDateFromId(tweetId);
+
                 if (!userMap[item.userId]) {
-                    userMap[item.userId] = { count: 0, urls: [], dates: [] };
+                    userMap[item.userId] = { count: 0, posts: [] };
                 }
                 userMap[item.userId].count += 1;
-                userMap[item.userId].urls.push(item.url);
-                userMap[item.userId].dates.push(item.date);
+                userMap[item.userId].posts.push({
+                    url: item.url.replace('x.com', 'twitter.com'), // ウィジェット安定化のため置換
+                    regDate: new Date(item.date),
+                    tweetId: tweetId,
+                    postDate: postDate
+                });
             });
 
-            // ランキング配列に変換してカウント順にソート
             globalRankingData = Object.keys(userMap)
-                .map(userId => ({
-                    userId: userId,
-                    count: userMap[userId].count,
-                    urls: userMap[userId].urls,
-                    dates: userMap[userId].dates
-                }))
+                .map(userId => ({ userId: userId, count: userMap[userId].count, posts: userMap[userId].posts }))
                 .sort((a, b) => b.count - a.count);
 
-            // HTML生成
             container.innerHTML = "";
-            
             if (globalRankingData.length === 0) {
                 container.innerHTML = "<div style='text-align: center; padding: 20px; color: #888;'>まだ登録データがありません</div>";
                 return;
@@ -348,62 +289,181 @@
 
             globalRankingData.forEach((user, index) => {
                 const rankNum = index + 1;
-                let rankClass = "";
-                if (rankNum === 1) rankClass = "rank-1";
-                if (rankNum === 2) rankClass = "rank-2";
-                if (rankNum === 3) rankClass = "rank-3";
+                let rankClass = rankNum === 1 ? "rank-1" : rankNum === 2 ? "rank-2" : rankNum === 3 ? "rank-3" : "";
 
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'ranking-item';
-                // 行をタップしたらモーダルを開く
                 itemDiv.onclick = () => openModal(user.userId);
-
                 itemDiv.innerHTML = `
                     <div class="rank ${rankClass}">${rankNum}</div>
                     <div class="icon" style="background-image: url('https://unavatar.io/twitter/${user.userId}');"></div>
-                    <div class="user-info">
-                        <p class="user-id">@${user.userId}</p>
-                    </div>
+                    <div class="user-info"><p class="user-id">@${user.userId}</p></div>
                     <div class="count-badge">${user.count}件</div>
                 `;
                 container.appendChild(itemDiv);
             });
-
         } catch (err) {
             container.innerHTML = "<div style='text-align: center; padding: 20px; color: #e0245e;'>データの取得に失敗しました</div>";
-            console.error(err);
         }
     }
 
-    // モーダルを開く処理
+    // --- モーダル＆ツイート表示処理 ---
     function openModal(userId) {
-        const user = globalRankingData.find(u => u.userId === userId);
-        if(!user) return;
+        currentModalUser = globalRankingData.find(u => u.userId === userId);
+        if(!currentModalUser) return;
 
-        document.getElementById('modalTitle').textContent = `@${userId} のお気に入りポスト`;
-        const listContainer = document.getElementById('modalList');
-        listContainer.innerHTML = '';
-
-        // URLリストを生成
-        user.urls.forEach((url, i) => {
-            const dateStr = user.dates[i] ? new Date(user.dates[i]).toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' }) : '';
-            
-            const li = document.createElement('li');
-            li.innerHTML = `
-                <a href="${url}" target="_blank" rel="noopener noreferrer">
-                    🔗 ポストを見る (${i + 1}件目)
-                    <span class="date">登録日: ${dateStr}</span>
-                </a>
-            `;
-            listContainer.appendChild(li);
+        document.getElementById('modalTitle').textContent = `@${userId} のポスト`;
+        document.getElementById('postModal').style.display = 'flex';
+        
+        // フィルタ用セレクトボックスの生成（存在する年月を抽出）
+        const filterSelect = document.getElementById('filterSelect');
+        filterSelect.innerHTML = '<option value="all">すべての月</option>';
+        
+        const months = new Set();
+        currentModalUser.posts.forEach(p => {
+            if(p.postDate) {
+                const yyyyMM = `${p.postDate.getFullYear()}-${String(p.postDate.getMonth()+1).padStart(2,'0')}`;
+                months.add(yyyyMM);
+            }
+        });
+        
+        Array.from(months).sort().reverse().forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m;
+            const [y, mm] = m.split('-');
+            opt.textContent = `${y}年${parseInt(mm)}月`;
+            filterSelect.appendChild(opt);
         });
 
-        document.getElementById('postModal').style.display = 'flex';
+        // 描画実行
+        renderModalList();
     }
 
-    // モーダルを閉じる処理
+    function renderModalList() {
+        const listContainer = document.getElementById('modalList');
+        const sortType = document.getElementById('sortSelect').value;
+        const filterMonth = document.getElementById('filterSelect').value;
+
+        // フィルタ処理
+        let filteredPosts = currentModalUser.posts.filter(p => {
+            if (filterMonth === 'all') return true;
+            if (!p.postDate) return false;
+            const yyyyMM = `${p.postDate.getFullYear()}-${String(p.postDate.getMonth()+1).padStart(2,'0')}`;
+            return yyyyMM === filterMonth;
+        });
+
+        // ソート処理
+        filteredPosts.sort((a, b) => {
+            if (sortType === 'reg_desc') return b.regDate - a.regDate;
+            if (sortType === 'reg_asc') return a.regDate - b.regDate;
+            if (sortType === 'post_desc') return (b.postDate || 0) - (a.postDate || 0);
+            if (sortType === 'post_asc') return (a.postDate || 0) - (b.postDate || 0);
+        });
+
+        listContainer.innerHTML = '';
+
+        if(filteredPosts.length === 0) {
+            listContainer.innerHTML = "<div style='text-align: center; padding: 30px; color: #888;'>該当するポストがありません</div>";
+            return;
+        }
+
+        // ツイートのHTML生成
+        filteredPosts.forEach(p => {
+            const regDateStr = p.regDate.toLocaleDateString('ja-JP');
+            const postDateStr = p.postDate ? p.postDate.toLocaleDateString('ja-JP') : '不明';
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'tweet-wrapper';
+            wrapper.innerHTML = `
+                <div class="tweet-meta">登録日: ${regDateStr} / 投稿日: ${postDateStr}</div>
+                <blockquote class="twitter-tweet" data-dnt="true" data-theme="light">
+                    <a href="${p.url}"></a>
+                </blockquote>
+            `;
+            listContainer.appendChild(wrapper);
+        });
+
+        // Twitterウィジェットに描画を指示
+        if (window.twttr && window.twttr.widgets) {
+            window.twttr.widgets.load(listContainer);
+        }
+    }
+
     function closeModal(event) {
         document.getElementById('postModal').style.display = 'none';
+    }
+
+    // --- Pull to Refresh (下に引っ張って更新) の実装 ---
+    let startY = 0;
+    let currentY = 0;
+    let isPulling = false;
+    const ptrIndicator = document.getElementById('ptr-indicator');
+    const ptrIcon = document.getElementById('ptr-icon');
+    const ptrText = document.getElementById('ptr-text');
+    const container = document.getElementById('main-container');
+
+    window.addEventListener('touchstart', e => {
+        // スクロールが一番上の時だけ発火
+        if (window.scrollY === 0 && document.getElementById('visualize').classList.contains('active')) {
+            startY = e.touches[0].clientY;
+            isPulling = true;
+        }
+    }, {passive: true});
+
+    window.addEventListener('touchmove', e => {
+        if (!isPulling) return;
+        currentY = e.touches[0].clientY;
+        let distance = currentY - startY;
+
+        if (distance > 0) {
+            // 抵抗をつける
+            let visualDistance = distance < 80 ? distance : 80 + (distance - 80) * 0.2;
+            container.style.transform = `translateY(${visualDistance}px)`;
+            
+            ptrIndicator.style.opacity = Math.min(distance / 60, 1);
+            ptrIndicator.style.transform = `translateY(${visualDistance}px)`;
+
+            if (distance > 80) {
+                ptrIcon.style.transform = "rotate(180deg)";
+                ptrText.innerText = "指を離して更新";
+            } else {
+                ptrIcon.style.transform = "rotate(0deg)";
+                ptrText.innerText = "引っ張って更新";
+            }
+        }
+    }, {passive: true});
+
+    window.addEventListener('touchend', e => {
+        if (!isPulling) return;
+        isPulling = false;
+        let distance = currentY - startY;
+
+        if (distance > 80) {
+            // 更新実行
+            ptrIcon.style.display = "none";
+            ptrText.innerText = "⏳ 読み込み中...";
+            container.style.transition = "transform 0.3s";
+            container.style.transform = "translateY(50px)";
+            
+            loadData().then(() => {
+                resetPtr();
+            });
+        } else {
+            resetPtr();
+        }
+    });
+
+    function resetPtr() {
+        container.style.transition = "transform 0.3s";
+        container.style.transform = "translateY(0)";
+        ptrIndicator.style.opacity = 0;
+        setTimeout(() => {
+            container.style.transition = "";
+            ptrIcon.style.display = "inline";
+            ptrIcon.style.transform = "rotate(0deg)";
+            ptrText.innerText = "引っ張って更新";
+            ptrIndicator.style.transform = "translateY(0)";
+        }, 300);
     }
 </script>
 
