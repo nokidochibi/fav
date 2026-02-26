@@ -3,126 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>推し可視化ランキング</title>
-    <!-- Twitterウィジェット用のスクリプト -->
+    <title>推し可視化ランキング（プライベート版）</title>
     <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
     <style>
         /* ベーススタイル */
-        body { 
-            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; 
-            background: #f0f2f5; 
-            margin: 0; 
-            padding: 0; 
-            color: #333; 
-            padding-bottom: 70px; 
-            -webkit-text-size-adjust: 100%;
-            overscroll-behavior-y: none; /* デフォルトのPull-to-refreshを無効化 */
-        }
+        body { font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif; background: #f0f2f5; margin: 0; padding: 0; color: #333; padding-bottom: 70px; -webkit-text-size-adjust: 100%; overscroll-behavior-y: none; }
         
-        /* Pull to Refresh インジケーター */
-        #ptr-indicator {
-            position: fixed;
-            top: 50px;
-            left: 0;
-            width: 100%;
-            text-align: center;
-            color: #888;
-            font-size: 14px;
-            z-index: 5;
-            opacity: 0;
-            pointer-events: none;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-        }
+        #ptr-indicator { position: fixed; top: 50px; left: 0; width: 100%; text-align: center; color: #888; font-size: 14px; z-index: 5; opacity: 0; pointer-events: none; display: flex; justify-content: center; align-items: center; gap: 8px; }
 
-        .header {
-            background: white;
-            padding: 15px;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-        .header h1 { margin: 0; font-size: 1.2rem; color: #1da1f2; }
+        .header { background: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 10; }
+        .header h1 { margin: 0; font-size: 1.1rem; color: #1da1f2; }
+        .account-btn { background: #f0f2f5; border: none; padding: 6px 12px; border-radius: 20px; font-size: 12px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 4px;}
 
         .container { padding: 20px; max-width: 600px; margin: 0 auto; position: relative; z-index: 10;}
-        
         .content { display: none; animation: fadeIn 0.3s ease; }
         .content.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* 入力フォーム */
-        input[type="text"] { 
-            width: 100%; padding: 15px; margin-bottom: 15px; border: 1px solid #ccc; 
-            border-radius: 8px; box-sizing: border-box; font-size: 16px; background: white;
-        }
-        button.primary-btn { 
-            width: 100%; padding: 15px; background: #1da1f2; color: white; border: none; 
-            border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; 
-            box-shadow: 0 4px 6px rgba(29, 161, 242, 0.2);
-        }
+        input[type="text"], input[type="password"] { width: 100%; padding: 15px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; background: white; }
+        button.primary-btn { width: 100%; padding: 15px; background: #1da1f2; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 6px rgba(29, 161, 242, 0.2); }
         button.primary-btn:active { transform: scale(0.98); }
         .msg { margin-top: 15px; text-align: center; font-size: 14px; min-height: 20px;}
 
-        /* ランキングUI */
         .ranking-list { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
-        .ranking-item {
-            display: flex; align-items: center; padding: 15px; background: white;
-            border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); cursor: pointer;
-        }
+        .ranking-item { display: flex; align-items: center; padding: 15px; background: white; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); cursor: pointer; }
         .ranking-item:active { background: #f8f9fa; }
         .rank { font-size: 1.2rem; font-weight: bold; width: 35px; color: #888; text-align: center; }
         .rank-1 { color: #ffd700; font-size: 1.5rem; }
         .rank-2 { color: #c0c0c0; font-size: 1.4rem; }
         .rank-3 { color: #cd7f32; font-size: 1.3rem; }
-        
-        .icon {
-            width: 45px; height: 45px; border-radius: 50%; margin-right: 15px;
-            background-color: #eee; background-size: cover; background-position: center; border: 1px solid #eaeaea;
-        }
+        .icon { width: 45px; height: 45px; border-radius: 50%; margin-right: 15px; background-color: #eee; background-size: cover; background-position: center; border: 1px solid #eaeaea; }
         .user-info { flex: 1; overflow: hidden; }
         .user-id { font-weight: bold; font-size: 16px; margin: 0; color: #141619; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;}
         .count-badge { background: #1da1f2; color: white; padding: 4px 10px; border-radius: 20px; font-size: 14px; font-weight: bold; }
 
-        /* 下部タブ */
-        .bottom-nav { 
-            position: fixed; bottom: 0; left: 0; width: 100%; background: white; 
-            display: flex; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); padding-bottom: env(safe-area-inset-bottom); z-index: 100;
-        }
+        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: white; display: flex; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
         .nav-item { flex: 1; text-align: center; padding: 15px 0; color: #888; cursor: pointer; font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
         .nav-item.active { color: #1da1f2; font-weight: bold; }
         .nav-icon { font-size: 20px; }
 
         /* モーダル */
-        .modal-overlay {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: flex-end; /* 下から出す */
-            backdrop-filter: blur(2px);
-        }
-        .modal-content {
-            background: #f0f2f5; width: 100%; max-width: 600px; height: 85vh;
-            border-radius: 16px 16px 0 0; display: flex; flex-direction: column;
-            box-shadow: 0 -5px 25px rgba(0,0,0,0.2); animation: slideUp 0.3s ease;
-        }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: flex-end; backdrop-filter: blur(2px); }
+        .modal-overlay.center { align-items: center; } /* ログインモーダル用 */
+        
+        .modal-content { background: #f0f2f5; width: 100%; max-width: 600px; height: 85vh; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; box-shadow: 0 -5px 25px rgba(0,0,0,0.2); animation: slideUp 0.3s ease; }
+        .login-modal { height: auto; border-radius: 16px; padding: 20px; animation: popIn 0.3s ease; }
+        
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         
         .modal-header { padding: 15px 20px; background: white; border-radius: 16px 16px 0 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; }
+        .login-modal .modal-header { border-radius: 16px 16px 0 0; padding: 0 0 15px 0; border-bottom: none;}
         .modal-header h2 { margin: 0; font-size: 1.1rem; }
         .close-btn { background: none; border: none; font-size: 24px; color: #888; cursor: pointer; padding: 0; }
         
-        /* フィルタ＆ソートコントロール */
         .modal-controls { background: white; padding: 10px 20px; display: flex; gap: 10px; border-bottom: 1px solid #eee; }
         .modal-controls select { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; background: #fff; }
-
         .modal-body { padding: 15px; overflow-y: auto; flex: 1; }
         
-        .tweet-wrapper {
-            background: white; border-radius: 12px; margin-bottom: 15px; padding: 5px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
+        .tweet-wrapper { background: white; border-radius: 12px; margin-bottom: 15px; padding: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .tweet-meta { font-size: 11px; color: #888; text-align: right; padding-right: 10px; padding-bottom: 5px; border-bottom: 1px dashed #eee; margin-bottom: 5px;}
     </style>
 </head>
@@ -134,7 +73,10 @@
 </div>
 
 <div class="header">
-    <h1>🏆 推しユーザーランキング</h1>
+    <h1>🏆 推しランキング</h1>
+    <button class="account-btn" onclick="openLoginModal()">
+        <span id="currentUserDisplay">👤 ログイン</span>
+    </button>
 </div>
 
 <div class="container" id="main-container">
@@ -147,11 +89,11 @@
 
     <div id="visualize" class="content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <p style="margin: 0; color: #666; font-size: 14px;">登録数が多い順</p>
+            <p style="margin: 0; color: #666; font-size: 14px;">自分専用のランキング</p>
             <p style="margin: 0; color: #888; font-size: 12px;">※下に引っ張って更新</p>
         </div>
         <div id="ranking-container" class="ranking-list">
-            <div style="text-align: center; padding: 20px; color: #888;">データを読み込んでいます...</div>
+            <!-- データが入ります -->
         </div>
     </div>
 </div>
@@ -181,35 +123,89 @@
             </select>
             <select id="filterSelect" onchange="renderModalList()">
                 <option value="all">すべての月</option>
-                <!-- 動的に追加 -->
             </select>
         </div>
-        <div class="modal-body" id="modalList">
-            <!-- ツイートがここに入ります -->
+        <div class="modal-body" id="modalList"></div>
+    </div>
+</div>
+
+<!-- ログイン（合言葉）モーダル -->
+<div id="loginModal" class="modal-overlay center">
+    <div class="modal-content login-modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2>🔐 秘密の合言葉を設定</h2>
         </div>
+        <p style="font-size: 14px; color: #666;">
+            自分専用のランキングを作るための「合言葉」を決めてください。<br>
+            友達同士で別々の言葉を使えば、お互いのデータは見えません。
+        </p>
+        <input type="password" id="secretIdInput" placeholder="例: sato_secret123" />
+        <button class="primary-btn" onclick="saveSecretId()">設定して始める</button>
     </div>
 </div>
 
 <script>
-    // 指定されたウェブアプリURL
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbz0Nj77dTOz9RT4UKd8swnzxGMZKwgI5L3mZboIzwaNIi2IMLwoAZqGt1FrH6dk0nHS6Q/exec";
+    // ==========================================
+    // ▼ ここに【新しくデプロイした】GASのウェブアプリURLを貼ってください ▼
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzwpFQK6JzxjAoH0e9S8S7sPOUl7848-kh5Im-qgE4QPhoFFH2gqyc0LxCzhRoOYyiXPQ/exec";
+    // ==========================================
 
     let globalRankingData = []; 
     let currentModalUser = null;
+    let mySecretId = ""; // ユーザーの秘密の合言葉
 
-    // --- ツイートIDから日時を計算する魔法の関数 (Snowflake) ---
+    // 起動時のチェック
+    window.onload = () => {
+        mySecretId = localStorage.getItem('oshi_app_secret');
+        if (!mySecretId) {
+            // 合言葉がなければ設定モーダルを強制表示
+            openLoginModal();
+        } else {
+            updateUserDisplay();
+        }
+    };
+
+    function openLoginModal() {
+        document.getElementById('loginModal').style.display = 'flex';
+        document.getElementById('secretIdInput').value = mySecretId || "";
+    }
+
+    function saveSecretId() {
+        const input = document.getElementById('secretIdInput').value.trim();
+        if (!input) {
+            alert("合言葉を入力してください");
+            return;
+        }
+        mySecretId = input;
+        localStorage.setItem('oshi_app_secret', mySecretId);
+        document.getElementById('loginModal').style.display = 'none';
+        updateUserDisplay();
+        
+        // ランキングタブが開いていれば再読み込み
+        if(document.getElementById('visualize').classList.contains('active')) {
+            loadData();
+        }
+    }
+
+    function updateUserDisplay() {
+        // 合言葉の先頭3文字だけ表示してあとは伏せ字にする
+        const display = mySecretId.length > 3 ? mySecretId.substring(0, 3) + "***" : mySecretId;
+        document.getElementById('currentUserDisplay').innerText = `🔐 ${display}`;
+    }
+
     function getTweetDateFromId(tweetId) {
         try {
             const idBigInt = BigInt(tweetId);
             const timestamp = Number(idBigInt >> 22n) + 1288834974657;
             return new Date(timestamp);
-        } catch(e) {
-            return null;
-        }
+        } catch(e) { return null; }
     }
 
-    // タブ切り替え
     function switchTab(tabName, element) {
+        if(!mySecretId) {
+            openLoginModal();
+            return;
+        }
         document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
         document.getElementById(tabName).classList.add('active');
         document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
@@ -217,8 +213,9 @@
         if(tabName === 'visualize') loadData();
     }
 
-    // データ登録
     function registerData() {
+        if(!mySecretId) { openLoginModal(); return; }
+
         const urlInput = document.getElementById('postUrl');
         const url = urlInput.value.trim();
         const msg = document.getElementById('regMsg');
@@ -237,7 +234,8 @@
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ userId: match[1], url: url })
+            // ここで secretId も一緒に送る
+            body: JSON.stringify({ secretId: mySecretId, userId: match[1], url: url })
         }).then(() => {
             msg.textContent = `✅ @${match[1]} さんのポストを登録しました！`;
             msg.style.color = "#17bf63";
@@ -248,15 +246,16 @@
         });
     }
 
-    // データ読み込み＆ランキング生成
     async function loadData() {
+        if(!mySecretId) return;
         const container = document.getElementById('ranking-container');
-        if(container.innerHTML.indexOf("読み込んでいます") > -1) {
-            // 初回のみ表示
+        if(container.innerHTML.indexOf("読み込んでいます") === -1 && globalRankingData.length === 0) {
+            container.innerHTML = "<div style='text-align: center; padding: 20px; color: #888;'>読み込んでいます...</div>";
         }
 
         try {
-            const res = await fetch(GAS_URL);
+            // GETパラメータとして secretId を送る
+            const res = await fetch(`${GAS_URL}?secretId=${encodeURIComponent(mySecretId)}`);
             const data = await res.json();
 
             const userMap = {};
@@ -265,12 +264,10 @@
                 const tweetId = tweetIdMatch ? tweetIdMatch[1] : "0";
                 const postDate = getTweetDateFromId(tweetId);
 
-                if (!userMap[item.userId]) {
-                    userMap[item.userId] = { count: 0, posts: [] };
-                }
+                if (!userMap[item.userId]) { userMap[item.userId] = { count: 0, posts: [] }; }
                 userMap[item.userId].count += 1;
                 userMap[item.userId].posts.push({
-                    url: item.url.replace('x.com', 'twitter.com'), // ウィジェット安定化のため置換
+                    url: item.url.replace('x.com', 'twitter.com'), 
                     regDate: new Date(item.date),
                     tweetId: tweetId,
                     postDate: postDate
@@ -307,18 +304,15 @@
         }
     }
 
-    // --- モーダル＆ツイート表示処理 ---
+    // --- モーダル表示等の処理は前回と同じ ---
     function openModal(userId) {
         currentModalUser = globalRankingData.find(u => u.userId === userId);
         if(!currentModalUser) return;
-
         document.getElementById('modalTitle').textContent = `@${userId} のポスト`;
         document.getElementById('postModal').style.display = 'flex';
         
-        // フィルタ用セレクトボックスの生成（存在する年月を抽出）
         const filterSelect = document.getElementById('filterSelect');
         filterSelect.innerHTML = '<option value="all">すべての月</option>';
-        
         const months = new Set();
         currentModalUser.posts.forEach(p => {
             if(p.postDate) {
@@ -326,7 +320,6 @@
                 months.add(yyyyMM);
             }
         });
-        
         Array.from(months).sort().reverse().forEach(m => {
             const opt = document.createElement('option');
             opt.value = m;
@@ -334,8 +327,6 @@
             opt.textContent = `${y}年${parseInt(mm)}月`;
             filterSelect.appendChild(opt);
         });
-
-        // 描画実行
         renderModalList();
     }
 
@@ -344,7 +335,6 @@
         const sortType = document.getElementById('sortSelect').value;
         const filterMonth = document.getElementById('filterSelect').value;
 
-        // フィルタ処理
         let filteredPosts = currentModalUser.posts.filter(p => {
             if (filterMonth === 'all') return true;
             if (!p.postDate) return false;
@@ -352,7 +342,6 @@
             return yyyyMM === filterMonth;
         });
 
-        // ソート処理
         filteredPosts.sort((a, b) => {
             if (sortType === 'reg_desc') return b.regDate - a.regDate;
             if (sortType === 'reg_asc') return a.regDate - b.regDate;
@@ -361,75 +350,53 @@
         });
 
         listContainer.innerHTML = '';
-
         if(filteredPosts.length === 0) {
             listContainer.innerHTML = "<div style='text-align: center; padding: 30px; color: #888;'>該当するポストがありません</div>";
             return;
         }
 
-        // ツイートのHTML生成
         filteredPosts.forEach(p => {
             const regDateStr = p.regDate.toLocaleDateString('ja-JP');
             const postDateStr = p.postDate ? p.postDate.toLocaleDateString('ja-JP') : '不明';
-
             const wrapper = document.createElement('div');
             wrapper.className = 'tweet-wrapper';
             wrapper.innerHTML = `
                 <div class="tweet-meta">登録日: ${regDateStr} / 投稿日: ${postDateStr}</div>
-                <blockquote class="twitter-tweet" data-dnt="true" data-theme="light">
-                    <a href="${p.url}"></a>
-                </blockquote>
+                <blockquote class="twitter-tweet" data-dnt="true" data-theme="light"><a href="${p.url}"></a></blockquote>
             `;
             listContainer.appendChild(wrapper);
         });
 
-        // Twitterウィジェットに描画を指示
         if (window.twttr && window.twttr.widgets) {
             window.twttr.widgets.load(listContainer);
         }
     }
 
     function closeModal(event) {
+        // 合言葉モーダルは閉じないようにする
+        if(event.target.closest('.login-modal')) return;
         document.getElementById('postModal').style.display = 'none';
     }
 
-    // --- Pull to Refresh (下に引っ張って更新) の実装 ---
-    let startY = 0;
-    let currentY = 0;
-    let isPulling = false;
-    const ptrIndicator = document.getElementById('ptr-indicator');
-    const ptrIcon = document.getElementById('ptr-icon');
-    const ptrText = document.getElementById('ptr-text');
-    const container = document.getElementById('main-container');
+    // --- Pull to Refresh ---
+    let startY = 0, currentY = 0, isPulling = false;
+    const ptrIndicator = document.getElementById('ptr-indicator'), ptrIcon = document.getElementById('ptr-icon'), ptrText = document.getElementById('ptr-text'), container = document.getElementById('main-container');
 
     window.addEventListener('touchstart', e => {
-        // スクロールが一番上の時だけ発火
-        if (window.scrollY === 0 && document.getElementById('visualize').classList.contains('active')) {
-            startY = e.touches[0].clientY;
-            isPulling = true;
-        }
+        if (window.scrollY === 0 && document.getElementById('visualize').classList.contains('active')) { startY = e.touches[0].clientY; isPulling = true; }
     }, {passive: true});
 
     window.addEventListener('touchmove', e => {
         if (!isPulling) return;
         currentY = e.touches[0].clientY;
         let distance = currentY - startY;
-
         if (distance > 0) {
-            // 抵抗をつける
             let visualDistance = distance < 80 ? distance : 80 + (distance - 80) * 0.2;
             container.style.transform = `translateY(${visualDistance}px)`;
-            
             ptrIndicator.style.opacity = Math.min(distance / 60, 1);
             ptrIndicator.style.transform = `translateY(${visualDistance}px)`;
-
-            if (distance > 80) {
-                ptrIcon.style.transform = "rotate(180deg)";
-                ptrText.innerText = "指を離して更新";
-            } else {
-                ptrIcon.style.transform = "rotate(0deg)";
-                ptrText.innerText = "引っ張って更新";
-            }
+            if (distance > 80) { ptrIcon.style.transform = "rotate(180deg)"; ptrText.innerText = "指を離して更新"; } 
+            else { ptrIcon.style.transform = "rotate(0deg)"; ptrText.innerText = "引っ張って更新"; }
         }
     }, {passive: true});
 
@@ -437,33 +404,16 @@
         if (!isPulling) return;
         isPulling = false;
         let distance = currentY - startY;
-
         if (distance > 80) {
-            // 更新実行
-            ptrIcon.style.display = "none";
-            ptrText.innerText = "⏳ 読み込み中...";
-            container.style.transition = "transform 0.3s";
-            container.style.transform = "translateY(50px)";
-            
-            loadData().then(() => {
-                resetPtr();
-            });
-        } else {
-            resetPtr();
-        }
+            ptrIcon.style.display = "none"; ptrText.innerText = "⏳ 読み込み中...";
+            container.style.transition = "transform 0.3s"; container.style.transform = "translateY(50px)";
+            loadData().then(() => { resetPtr(); });
+        } else { resetPtr(); }
     });
 
     function resetPtr() {
-        container.style.transition = "transform 0.3s";
-        container.style.transform = "translateY(0)";
-        ptrIndicator.style.opacity = 0;
-        setTimeout(() => {
-            container.style.transition = "";
-            ptrIcon.style.display = "inline";
-            ptrIcon.style.transform = "rotate(0deg)";
-            ptrText.innerText = "引っ張って更新";
-            ptrIndicator.style.transform = "translateY(0)";
-        }, 300);
+        container.style.transition = "transform 0.3s"; container.style.transform = "translateY(0)"; ptrIndicator.style.opacity = 0;
+        setTimeout(() => { container.style.transition = ""; ptrIcon.style.display = "inline"; ptrIcon.style.transform = "rotate(0deg)"; ptrText.innerText = "引っ張って更新"; ptrIndicator.style.transform = "translateY(0)"; }, 300);
     }
 </script>
 
