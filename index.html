@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>推し可視化ランキング（プライベート版）</title>
+    
+    <!-- ▼ GASのウェブアプリURLはここに貼ってください (一番上に移動しました) ▼ -->
+    <script>
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbwGqj85h341pIydj2nY-ZhwQp4s0lsnMzb35jYwkwLNdp_43xhz5ms4AtaioKT36X3n5Q/exec";
+    </script>
+    <!-- ▲ ここまで ▲ -->
+
     <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
     <style>
         /* ベーススタイル */
@@ -171,11 +178,6 @@
 </div>
 
 <script>
-    // ==========================================
-    // ▼ ここに【新しくデプロイした】GASのウェブアプリURLを貼ってください ▼
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwVZsnOdRua7WwLnf2Cayq7RbCUfdu4KVk-CeiEQpZLeyHWm8Q_oh3CYwzKVLQn-zHWJQ/exec";
-    // ==========================================
-
     let globalRankingData = []; 
     let currentModalUser = null;
     let mySecretId = ""; // ユーザーの秘密の合言葉
@@ -442,12 +444,14 @@
         filteredPosts.forEach(p => {
             const regDateStr = p.regDate.toLocaleDateString('ja-JP');
             const postDateStr = p.postDate ? p.postDate.toLocaleDateString('ja-JP') : '不明';
+            // 登録日時(ISO文字列)も特定用に保持
+            const regIso = p.regDate.toISOString();
             const wrapper = document.createElement('div');
             wrapper.className = 'tweet-wrapper';
             wrapper.innerHTML = `
                 <div class="tweet-meta" style="display: flex; justify-content: space-between; align-items: center;">
                     <span>登録日: ${regDateStr} / 投稿日: ${postDateStr}</span>
-                    <button onclick="deletePost('${p.url}', this)" style="background:none; border:none; color:#e0245e; cursor:pointer; font-size:12px; font-weight:bold; padding: 2px 6px;">🗑️削除</button>
+                    <button onclick="deletePost('${p.url}', '${regIso}', this)" style="background:none; border:none; color:#e0245e; cursor:pointer; font-size:12px; font-weight:bold; padding: 2px 6px;">🗑️削除</button>
                 </div>
                 <blockquote class="twitter-tweet" data-dnt="true" data-theme="light"><a href="${p.url}"></a></blockquote>
             `;
@@ -459,23 +463,23 @@
         }
     }
 
-    async function deletePost(url, btnElement) {
+    async function deletePost(url, regIso, btnElement) {
         if(!confirm("このポストの登録を解除（削除）しますか？")) return;
         
         btnElement.innerText = "削除中...";
         btnElement.disabled = true;
 
         try {
-            // GASへ削除リクエスト送信
+            // GASへ削除リクエスト送信 (登録日時も含めて送る)
             await fetch(GAS_URL, {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ action: "delete_post", secretId: mySecretId, url: url })
+                body: JSON.stringify({ action: "delete_post", secretId: mySecretId, url: url, regDate: regIso })
             });
             
-            // 画面上のデータからも削除
-            currentModalUser.posts = currentModalUser.posts.filter(p => p.url !== url);
+            // 画面上のデータからも削除 (URLと登録日時の両方が一致するものだけ消す)
+            currentModalUser.posts = currentModalUser.posts.filter(p => !(p.url === url && p.regDate.toISOString() === regIso));
             
             if(currentModalUser.posts.length === 0) {
                 // ポストが0件になったらモーダルを閉じる
