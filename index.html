@@ -63,6 +63,13 @@
         
         .tweet-wrapper { background: white; border-radius: 12px; margin-bottom: 15px; padding: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .tweet-meta { font-size: 11px; color: #888; text-align: right; padding-right: 10px; padding-bottom: 5px; border-bottom: 1px dashed #eee; margin-bottom: 5px;}
+        
+        /* ログインタブ・警告用 */
+        .auth-tabs { display: flex; gap: 10px; margin-bottom: 15px; }
+        .auth-tab-btn { flex: 1; padding: 10px; background: #e1e8ed; border: none; border-radius: 8px; font-weight: bold; color: #657786; cursor: pointer; transition: background 0.2s; }
+        .auth-tab-btn.active { background: #1da1f2; color: white; }
+        .alert-box { background: #fff3f5; border: 1px solid #ffcdd2; padding: 12px; border-radius: 8px; margin-bottom: 15px; }
+        .alert-text { font-size: 13px; color: #d32f2f; margin: 0; font-weight: bold; line-height: 1.4; }
     </style>
 </head>
 <body>
@@ -130,24 +137,43 @@
 </div>
 
 <!-- ログイン（合言葉）モーダル -->
-<div id="loginModal" class="modal-overlay center">
+<div id="loginModal" class="modal-overlay center" onclick="closeModal(event)">
     <div class="modal-content login-modal" onclick="event.stopPropagation()">
-        <div class="modal-header">
-            <h2>🔐 秘密の合言葉を設定</h2>
+        <div class="modal-header" style="border-radius: 16px 16px 0 0; padding: 0 0 15px 0; border-bottom: none; display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0; font-size: 1.2rem;">🔐 合言葉の設定</h2>
+            <button class="close-btn" id="loginCloseBtn" onclick="closeLoginModal()" style="display:none;">&times;</button>
         </div>
-        <p style="font-size: 14px; color: #666;">
-            自分専用のランキングを作るための「合言葉」を決めてください。<br>
-            友達同士で別々の言葉を使えば、お互いのデータは見えません。
-        </p>
-        <input type="password" id="secretIdInput" placeholder="例: sato_secret123" />
-        <button class="primary-btn" onclick="saveSecretId()">設定して始める</button>
+        
+        <div class="alert-box">
+            <p class="alert-text">
+                ⚠️ 注意<br>
+                合言葉が一致すれば、誰でも内容を閲覧・削除できてしまいます。名前や誕生日など、個人が推測されやすいものは絶対に避けてください。
+            </p>
+        </div>
+
+        <div class="auth-tabs">
+            <button id="tab-login" class="auth-tab-btn active" onclick="switchAuthTab('login')">ログイン</button>
+            <button id="tab-register" class="auth-tab-btn" onclick="switchAuthTab('register')">新規登録</button>
+        </div>
+
+        <div id="login-section">
+            <input type="password" id="loginSecretInput" placeholder="既存の合言葉を入力" />
+            <button class="primary-btn" onclick="doLogin()">ログインする</button>
+            <div id="loginMsg" class="msg"></div>
+        </div>
+
+        <div id="register-section" style="display: none;">
+            <input type="password" id="registerSecretInput" placeholder="新しく合言葉を作成" />
+            <button class="primary-btn" onclick="doRegister()">作成して始める</button>
+            <div id="registerMsg" class="msg"></div>
+        </div>
     </div>
 </div>
 
 <script>
     // ==========================================
     // ▼ ここに【新しくデプロイした】GASのウェブアプリURLを貼ってください ▼
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbzwpFQK6JzxjAoH0e9S8S7sPOUl7848-kh5Im-qgE4QPhoFFH2gqyc0LxCzhRoOYyiXPQ/exec";
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwVZsnOdRua7WwLnf2Cayq7RbCUfdu4KVk-CeiEQpZLeyHWm8Q_oh3CYwzKVLQn-zHWJQ/exec";
     // ==========================================
 
     let globalRankingData = []; 
@@ -167,23 +193,81 @@
 
     function openLoginModal() {
         document.getElementById('loginModal').style.display = 'flex';
-        document.getElementById('secretIdInput').value = mySecretId || "";
+        document.getElementById('loginSecretInput').value = mySecretId || "";
+        
+        // すでに合言葉がある場合のみ「閉じる」ボタンを表示
+        if (mySecretId) {
+            document.getElementById('loginCloseBtn').style.display = 'block';
+        } else {
+            document.getElementById('loginCloseBtn').style.display = 'none';
+        }
+        
+        document.getElementById('loginMsg').textContent = "";
+        document.getElementById('registerMsg').textContent = "";
     }
 
-    function saveSecretId() {
-        const input = document.getElementById('secretIdInput').value.trim();
+    function closeLoginModal() {
+        if (mySecretId) {
+            document.getElementById('loginModal').style.display = 'none';
+        }
+    }
+
+    function switchAuthTab(tabName) {
+        document.getElementById('tab-login').classList.remove('active');
+        document.getElementById('tab-register').classList.remove('active');
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('register-section').style.display = 'none';
+
+        document.getElementById(`tab-${tabName}`).classList.add('active');
+        document.getElementById(`${tabName}-section`).style.display = 'block';
+    }
+
+    async function doLogin() {
+        const input = document.getElementById('loginSecretInput').value.trim();
+        const msg = document.getElementById('loginMsg');
         if (!input) {
-            alert("合言葉を入力してください");
+            msg.textContent = "合言葉を入力してください";
+            msg.style.color = "#e0245e";
             return;
         }
+
         mySecretId = input;
         localStorage.setItem('oshi_app_secret', mySecretId);
         document.getElementById('loginModal').style.display = 'none';
         updateUserDisplay();
-        
-        // ランキングタブが開いていれば再読み込み
-        if(document.getElementById('visualize').classList.contains('active')) {
-            loadData();
+        if(document.getElementById('visualize').classList.contains('active')) loadData();
+    }
+
+    async function doRegister() {
+        const input = document.getElementById('registerSecretInput').value.trim();
+        const msg = document.getElementById('registerMsg');
+        if (!input) {
+            msg.textContent = "合言葉を入力してください";
+            msg.style.color = "#e0245e";
+            return;
+        }
+
+        msg.textContent = "確認中...";
+        msg.style.color = "#666";
+
+        try {
+            // GASに合言葉が既に使われているか問い合わせる
+            const res = await fetch(`${GAS_URL}?action=check_secret&secretId=${encodeURIComponent(input)}`);
+            const data = await res.json();
+
+            if (data.exists) {
+                msg.textContent = "⚠️ この合言葉は既に使われています。別のものにしてください。";
+                msg.style.color = "#e0245e";
+            } else {
+                mySecretId = input;
+                localStorage.setItem('oshi_app_secret', mySecretId);
+                document.getElementById('loginModal').style.display = 'none';
+                updateUserDisplay();
+                if(document.getElementById('visualize').classList.contains('active')) loadData();
+            }
+        } catch(e) {
+            msg.textContent = "通信エラーが発生しました";
+            msg.style.color = "#e0245e";
         }
     }
 
@@ -234,8 +318,8 @@
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
-            // ここで secretId も一緒に送る
-            body: JSON.stringify({ secretId: mySecretId, userId: match[1], url: url })
+            // アクションと secretId も一緒に送る
+            body: JSON.stringify({ action: "add_post", secretId: mySecretId, userId: match[1], url: url })
         }).then(() => {
             msg.textContent = `✅ @${match[1]} さんのポストを登録しました！`;
             msg.style.color = "#17bf63";
@@ -361,20 +445,64 @@
             const wrapper = document.createElement('div');
             wrapper.className = 'tweet-wrapper';
             wrapper.innerHTML = `
-                <div class="tweet-meta">登録日: ${regDateStr} / 投稿日: ${postDateStr}</div>
+                <div class="tweet-meta" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>登録日: ${regDateStr} / 投稿日: ${postDateStr}</span>
+                    <button onclick="deletePost('${p.url}', this)" style="background:none; border:none; color:#e0245e; cursor:pointer; font-size:12px; font-weight:bold; padding: 2px 6px;">🗑️削除</button>
+                </div>
                 <blockquote class="twitter-tweet" data-dnt="true" data-theme="light"><a href="${p.url}"></a></blockquote>
             `;
             listContainer.appendChild(wrapper);
         });
 
         if (window.twttr && window.twttr.widgets) {
+        if (window.twttr && window.twttr.widgets) {
             window.twttr.widgets.load(listContainer);
         }
     }
 
+    async function deletePost(url, btnElement) {
+        if(!confirm("このポストの登録を解除（削除）しますか？")) return;
+        
+        btnElement.innerText = "削除中...";
+        btnElement.disabled = true;
+
+        try {
+            // GASへ削除リクエスト送信
+            await fetch(GAS_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: "delete_post", secretId: mySecretId, url: url })
+            });
+            
+            // 画面上のデータからも削除
+            currentModalUser.posts = currentModalUser.posts.filter(p => p.url !== url);
+            
+            if(currentModalUser.posts.length === 0) {
+                // ポストが0件になったらモーダルを閉じる
+                document.getElementById('postModal').style.display = 'none';
+                loadData();
+            } else {
+                renderModalList(); 
+                loadData(); // 背景のランキングも更新しておく
+            }
+            
+        } catch(e) {
+            alert("削除に失敗しました");
+            btnElement.innerText = "🗑️ 削除";
+            btnElement.disabled = false;
+        }
+    }
+
     function closeModal(event) {
-        // 合言葉モーダルは閉じないようにする
+        // ログインモーダルの背景クリックで、合言葉が設定済みなら閉じる
+        if(event.target.id === 'loginModal') {
+            if(mySecretId) document.getElementById('loginModal').style.display = 'none';
+            return;
+        }
+        // 合言葉モーダルの中身クリック時は何もしない
         if(event.target.closest('.login-modal')) return;
+        
         document.getElementById('postModal').style.display = 'none';
     }
 
