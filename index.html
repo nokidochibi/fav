@@ -44,6 +44,12 @@
         .user-id { font-weight: bold; font-size: 16px; margin: 0; color: #141619; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;}
         .count-badge { background: #1da1f2; color: white; padding: 4px 10px; border-radius: 20px; font-size: 14px; font-weight: bold; }
 
+        /* タグリストUI */
+        .tag-list { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
+        .tag-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: white; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); cursor: pointer; font-weight: bold; color: #444; }
+        .tag-item:active { background: #f8f9fa; }
+        .tag-icon { margin-right: 10px; color: #1da1f2; }
+
         .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: white; display: flex; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
         .nav-item { flex: 1; text-align: center; padding: 15px 0; color: #888; cursor: pointer; font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
         .nav-item.active { color: #1da1f2; font-weight: bold; }
@@ -71,6 +77,12 @@
         .tweet-wrapper { background: white; border-radius: 12px; margin-bottom: 15px; padding: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .tweet-meta { font-size: 11px; color: #888; text-align: right; padding-right: 10px; padding-bottom: 5px; border-bottom: 1px dashed #eee; margin-bottom: 5px;}
         
+        /* タグ編集用 */
+        .tag-edit-area { background: #f8f9fa; padding: 8px 10px; border-radius: 8px; margin-bottom: 10px; display: flex; gap: 8px; align-items: center; }
+        .tag-edit-area input { flex: 1; margin: 0; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; }
+        .tag-edit-area button { padding: 8px 12px; background: #1da1f2; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; }
+        .tag-edit-area button:disabled { background: #ccc; }
+
         /* ログインタブ・警告用 */
         .auth-tabs { display: flex; gap: 10px; margin-bottom: 15px; }
         .auth-tab-btn { flex: 1; padding: 10px; background: #e1e8ed; border: none; border-radius: 8px; font-weight: bold; color: #657786; cursor: pointer; transition: background 0.2s; }
@@ -97,16 +109,33 @@
     <div id="register" class="content active">
         <p style="color: #666; margin-bottom: 20px;">推しポストのURLを貼り付けて登録しましょう。</p>
         <input type="text" id="postUrl" placeholder="https://x.com/user/status/123..." />
-        <button class="primary-btn" onclick="registerData()">登録する</button>
+        
+        <!-- タグ入力追加 -->
+        <input type="text" id="postTag" list="tagList" placeholder="タグ (任意) 例: イラスト, 告知" style="margin-top: 5px;" />
+        <datalist id="tagList"></datalist>
+
+        <button class="primary-btn" onclick="registerData()" style="margin-top: 5px;">登録する</button>
         <div id="regMsg" class="msg"></div>
     </div>
 
-    <div id="visualize" class="content">
+    <!-- ユーザータブ (元visualize) -->
+    <div id="users" class="content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <p style="margin: 0; color: #666; font-size: 14px;">自分専用のランキング</p>
+            <p style="margin: 0; color: #666; font-size: 14px;">ユーザー別 (登録数順)</p>
             <p style="margin: 0; color: #888; font-size: 12px;">※下に引っ張って更新</p>
         </div>
         <div id="ranking-container" class="ranking-list">
+            <!-- データが入ります -->
+        </div>
+    </div>
+
+    <!-- タグタブ (新規) -->
+    <div id="tags" class="content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <p style="margin: 0; color: #666; font-size: 14px;">タグ一覧 (昇順)</p>
+            <p style="margin: 0; color: #888; font-size: 12px;">※下に引っ張って更新</p>
+        </div>
+        <div id="tag-container" class="tag-list">
             <!-- データが入ります -->
         </div>
     </div>
@@ -116,8 +145,11 @@
     <div class="nav-item active" onclick="switchTab('register', this)">
         <span class="nav-icon">➕</span><span>登録</span>
     </div>
-    <div class="nav-item" onclick="switchTab('visualize', this)">
-        <span class="nav-icon">👑</span><span>ランキング</span>
+    <div class="nav-item" onclick="switchTab('users', this)">
+        <span class="nav-icon">👤</span><span>ユーザー</span>
+    </div>
+    <div class="nav-item" onclick="switchTab('tags', this)">
+        <span class="nav-icon">🏷️</span><span>タグ</span>
     </div>
 </div>
 
@@ -179,7 +211,9 @@
 
 <script>
     let globalRankingData = []; 
-    let currentModalUser = null;
+    let globalTagData = []; // タグデータ用
+    let currentModalUser = null; 
+    let currentModalTag = null; 
     let mySecretId = ""; // ユーザーの秘密の合言葉
 
     // 起動時のチェック
@@ -296,14 +330,16 @@
         document.getElementById(tabName).classList.add('active');
         document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
         element.classList.add('active');
-        if(tabName === 'visualize') loadData();
+        if(tabName === 'users' || tabName === 'tags') loadData();
     }
 
     function registerData() {
         if(!mySecretId) { openLoginModal(); return; }
 
         const urlInput = document.getElementById('postUrl');
+        const tagInput = document.getElementById('postTag');
         const url = urlInput.value.trim();
+        const tag = tagInput.value.trim();
         const msg = document.getElementById('regMsg');
         const match = url.match(/(?:x\.com|twitter\.com)\/([^\/]+)\/status/);
         
@@ -320,12 +356,12 @@
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
-            // アクションと secretId も一緒に送る
-            body: JSON.stringify({ action: "add_post", secretId: mySecretId, userId: match[1], url: url })
+            body: JSON.stringify({ action: "add_post", secretId: mySecretId, userId: match[1], url: url, tag: tag })
         }).then(() => {
             msg.textContent = `✅ @${match[1]} さんのポストを登録しました！`;
             msg.style.color = "#17bf63";
             urlInput.value = ""; 
+            tagInput.value = "";
         }).catch(err => {
             msg.textContent = "❌ エラーが発生しました";
             msg.style.color = "#e0245e";
@@ -335,32 +371,58 @@
     async function loadData() {
         if(!mySecretId) return;
         const container = document.getElementById('ranking-container');
+        const tagContainer = document.getElementById('tag-container');
+        
         if(container.innerHTML.indexOf("読み込んでいます") === -1 && globalRankingData.length === 0) {
             container.innerHTML = "<div style='text-align: center; padding: 20px; color: #888;'>読み込んでいます...</div>";
+            tagContainer.innerHTML = "<div style='text-align: center; padding: 20px; color: #888;'>読み込んでいます...</div>";
         }
 
         try {
-            // GETパラメータとして secretId を送る
             const res = await fetch(`${GAS_URL}?secretId=${encodeURIComponent(mySecretId)}`);
             const data = await res.json();
 
             const userMap = {};
+            const tagMap = {};
+            const uniqueTags = new Set();
+
             data.forEach(item => {
                 const tweetIdMatch = item.url.match(/\/status\/(\d+)/);
                 const tweetId = tweetIdMatch ? tweetIdMatch[1] : "0";
                 const postDate = getTweetDateFromId(tweetId);
+                const tagValue = item.tag ? item.tag.trim() : "";
+                const displayTag = tagValue || "未分類";
 
-                if (!userMap[item.userId]) { userMap[item.userId] = { count: 0, posts: [] }; }
-                userMap[item.userId].count += 1;
-                userMap[item.userId].posts.push({
-                    row: item.row, // GASから送られてきた「行番号」を保存
+                const postObj = {
+                    row: item.row, 
                     url: item.url.replace('x.com', 'twitter.com'), 
                     regDate: new Date(item.date),
                     tweetId: tweetId,
-                    postDate: postDate
-                });
+                    postDate: postDate,
+                    tag: tagValue 
+                };
+
+                if (!userMap[item.userId]) { userMap[item.userId] = { count: 0, posts: [] }; }
+                userMap[item.userId].count += 1;
+                userMap[item.userId].posts.push(postObj);
+
+                if (!tagMap[displayTag]) { tagMap[displayTag] = { count: 0, posts: [] }; }
+                tagMap[displayTag].count += 1;
+                tagMap[displayTag].posts.push(postObj);
+                
+                if (tagValue) uniqueTags.add(tagValue);
             });
 
+            // サジェスト(datalist)の更新
+            const dataList = document.getElementById('tagList');
+            dataList.innerHTML = '';
+            Array.from(uniqueTags).sort().forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t;
+                dataList.appendChild(opt);
+            });
+
+            // ユーザータブの描画
             globalRankingData = Object.keys(userMap)
                 .map(userId => ({ userId: userId, count: userMap[userId].count, posts: userMap[userId].posts }))
                 .sort((a, b) => b.count - a.count);
@@ -368,48 +430,85 @@
             container.innerHTML = "";
             if (globalRankingData.length === 0) {
                 container.innerHTML = "<div style='text-align: center; padding: 20px; color: #888;'>まだ登録データがありません</div>";
-                return;
+            } else {
+                let currentCount = -1;
+                let displayRank = 1;
+
+                globalRankingData.forEach((user, index) => {
+                    if (user.count !== currentCount) {
+                        displayRank = index + 1;
+                        currentCount = user.count;
+                    }
+                    
+                    let rankClass = displayRank === 1 ? "rank-1" : displayRank === 2 ? "rank-2" : displayRank === 3 ? "rank-3" : "";
+
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'ranking-item';
+                    itemDiv.onclick = () => openModal('user', user.userId);
+                    itemDiv.innerHTML = `
+                        <div class="rank ${rankClass}">${displayRank}</div>
+                        <div class="icon" style="background-image: url('https://unavatar.io/twitter/${user.userId}');"></div>
+                        <div class="user-info"><p class="user-id">@${user.userId}</p></div>
+                        <div class="count-badge">${user.count}件</div>
+                    `;
+                    container.appendChild(itemDiv);
+                });
             }
 
-            let currentCount = -1;
-            let displayRank = 1;
+            // タグタブの描画
+            const tagsArray = Object.keys(tagMap).filter(t => t !== "未分類").sort();
+            if (tagMap["未分類"]) tagsArray.push("未分類"); // 未分類は最後に配置
 
-            globalRankingData.forEach((user, index) => {
-                // 件数が前回と違う場合のみ、順位を更新する（同じなら同率順位になる）
-                if (user.count !== currentCount) {
-                    displayRank = index + 1;
-                    currentCount = user.count;
-                }
-                
-                let rankClass = displayRank === 1 ? "rank-1" : displayRank === 2 ? "rank-2" : displayRank === 3 ? "rank-3" : "";
+            globalTagData = tagsArray.map(tagName => ({ tagName: tagName, count: tagMap[tagName].count, posts: tagMap[tagName].posts }));
 
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'ranking-item';
-                itemDiv.onclick = () => openModal(user.userId);
-                itemDiv.innerHTML = `
-                    <div class="rank ${rankClass}">${displayRank}</div>
-                    <div class="icon" style="background-image: url('https://unavatar.io/twitter/${user.userId}');"></div>
-                    <div class="user-info"><p class="user-id">@${user.userId}</p></div>
-                    <div class="count-badge">${user.count}件</div>
-                `;
-                container.appendChild(itemDiv);
-            });
+            tagContainer.innerHTML = "";
+            if (globalTagData.length === 0) {
+                tagContainer.innerHTML = "<div style='text-align: center; padding: 20px; color: #888;'>まだ登録データがありません</div>";
+            } else {
+                globalTagData.forEach(tagData => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'tag-item';
+                    itemDiv.onclick = () => openModal('tag', tagData.tagName);
+                    itemDiv.innerHTML = `
+                        <div><span class="tag-icon">🏷️</span> ${tagData.tagName}</div>
+                        <div class="count-badge">${tagData.count}件</div>
+                    `;
+                    tagContainer.appendChild(itemDiv);
+                });
+            }
+
         } catch (err) {
             container.innerHTML = "<div style='text-align: center; padding: 20px; color: #e0245e;'>データの取得に失敗しました</div>";
+            tagContainer.innerHTML = "<div style='text-align: center; padding: 20px; color: #e0245e;'>データの取得に失敗しました</div>";
         }
     }
 
     // --- モーダル表示等の処理は前回と同じ ---
-    function openModal(userId) {
-        currentModalUser = globalRankingData.find(u => u.userId === userId);
-        if(!currentModalUser) return;
-        document.getElementById('modalTitle').textContent = `@${userId} のポスト`;
+    function openModal(type, id) {
+        let targetPosts = [];
+        currentModalUser = null;
+        currentModalTag = null;
+
+        if (type === 'user') {
+            const user = globalRankingData.find(u => u.userId === id);
+            if(!user) return;
+            currentModalUser = user;
+            targetPosts = user.posts;
+            document.getElementById('modalTitle').textContent = `@${id} のポスト`;
+        } else if (type === 'tag') {
+            const tag = globalTagData.find(t => t.tagName === id);
+            if(!tag) return;
+            currentModalTag = tag;
+            targetPosts = tag.posts;
+            document.getElementById('modalTitle').textContent = `タグ: ${id}`;
+        }
+
         document.getElementById('postModal').style.display = 'flex';
         
         const filterSelect = document.getElementById('filterSelect');
         filterSelect.innerHTML = '<option value="all">すべての月</option>';
         const months = new Set();
-        currentModalUser.posts.forEach(p => {
+        targetPosts.forEach(p => {
             if(p.postDate) {
                 const yyyyMM = `${p.postDate.getFullYear()}-${String(p.postDate.getMonth()+1).padStart(2,'0')}`;
                 months.add(yyyyMM);
@@ -430,7 +529,9 @@
         const sortType = document.getElementById('sortSelect').value;
         const filterMonth = document.getElementById('filterSelect').value;
 
-        let filteredPosts = currentModalUser.posts.filter(p => {
+        let targetPosts = currentModalUser ? currentModalUser.posts : (currentModalTag ? currentModalTag.posts : []);
+
+        let filteredPosts = targetPosts.filter(p => {
             if (filterMonth === 'all') return true;
             if (!p.postDate) return false;
             const yyyyMM = `${p.postDate.getFullYear()}-${String(p.postDate.getMonth()+1).padStart(2,'0')}`;
@@ -453,9 +554,16 @@
         filteredPosts.forEach(p => {
             const regDateStr = p.regDate.toLocaleDateString('ja-JP');
             const postDateStr = p.postDate ? p.postDate.toLocaleDateString('ja-JP') : '不明';
+            const inputId = `tag-input-${p.row}`;
+            
             const wrapper = document.createElement('div');
             wrapper.className = 'tweet-wrapper';
             wrapper.innerHTML = `
+                <div class="tag-edit-area">
+                    <span>🏷️</span>
+                    <input type="text" id="${inputId}" value="${p.tag || ''}" placeholder="タグ未設定 (未分類)" list="tagList">
+                    <button onclick="updateTag('${p.url}', ${p.row}, '${inputId}', this)">保存</button>
+                </div>
                 <div class="tweet-meta" style="display: flex; justify-content: space-between; align-items: center;">
                     <span>登録日: ${regDateStr} / 投稿日: ${postDateStr}</span>
                     <button onclick="deletePost('${p.url}', ${p.row}, this)" style="background:none; border:none; color:#e0245e; cursor:pointer; font-size:12px; font-weight:bold; padding: 2px 6px;">🗑️推しポストから削除</button>
@@ -470,6 +578,45 @@
         }
     }
 
+    async function updateTag(url, row, inputId, btnElement) {
+        const newTag = document.getElementById(inputId).value.trim();
+        const originalText = btnElement.innerText;
+        btnElement.innerText = "⏳";
+        btnElement.disabled = true;
+
+        try {
+            await fetch(GAS_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ action: "update_tag", secretId: mySecretId, url: url, row: row, tag: newTag })
+            });
+
+            // メモリ上のデータも更新
+            if (currentModalUser) {
+                const post = currentModalUser.posts.find(p => p.row === row);
+                if (post) post.tag = newTag;
+            } else if (currentModalTag) {
+                const post = currentModalTag.posts.find(p => p.row === row);
+                if (post) post.tag = newTag;
+            }
+            
+            btnElement.innerText = "✓完了";
+            setTimeout(() => {
+                btnElement.innerText = "保存";
+                btnElement.disabled = false;
+            }, 2000);
+
+            // 背景データの再取得を裏で走らせる(次タブを切り替えた時のために)
+            loadData();
+            
+        } catch(e) {
+            alert("タグの保存に失敗しました");
+            btnElement.innerText = originalText;
+            btnElement.disabled = false;
+        }
+    }
+
     async function deletePost(url, row, btnElement) {
         if(!confirm("このポストの登録を解除（削除）しますか？")) return;
         
@@ -477,7 +624,6 @@
         btnElement.disabled = true;
 
         try {
-            // GASへ削除リクエスト送信 (行番号を含めて送る)
             await fetch(GAS_URL, {
                 method: 'POST',
                 mode: 'no-cors',
@@ -485,16 +631,21 @@
                 body: JSON.stringify({ action: "delete_post", secretId: mySecretId, url: url, row: row })
             });
             
-            // 画面上のデータから削除 (行番号が一致するものだけ消す)
-            currentModalUser.posts = currentModalUser.posts.filter(p => p.row !== row);
+            let targetPosts = [];
+            if (currentModalUser) {
+                currentModalUser.posts = currentModalUser.posts.filter(p => p.row !== row);
+                targetPosts = currentModalUser.posts;
+            } else if (currentModalTag) {
+                currentModalTag.posts = currentModalTag.posts.filter(p => p.row !== row);
+                targetPosts = currentModalTag.posts;
+            }
             
-            if(currentModalUser.posts.length === 0) {
-                // ポストが0件になったらモーダルを閉じる
+            if(targetPosts.length === 0) {
                 document.getElementById('postModal').style.display = 'none';
                 loadData();
             } else {
                 renderModalList(); 
-                loadData(); // 背景のランキングも更新しておく
+                loadData();
             }
             
         } catch(e) {
@@ -521,7 +672,11 @@
     const ptrIndicator = document.getElementById('ptr-indicator'), ptrIcon = document.getElementById('ptr-icon'), ptrText = document.getElementById('ptr-text'), container = document.getElementById('main-container');
 
     window.addEventListener('touchstart', e => {
-        if (window.scrollY === 0 && document.getElementById('visualize').classList.contains('active')) { startY = e.touches[0].clientY; isPulling = true; }
+        // users または tags タブがアクティブなときにPull to Refreshを有効化
+        if (window.scrollY === 0 && (document.getElementById('users').classList.contains('active') || document.getElementById('tags').classList.contains('active'))) { 
+            startY = e.touches[0].clientY; 
+            isPulling = true; 
+        }
     }, {passive: true});
 
     window.addEventListener('touchmove', e => {
