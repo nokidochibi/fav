@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>推し可視化ランキング（プライベート版）</title>
+    <title>推しポスト（プライベート版）</title>
     
     <!-- ▼ GASのウェブアプリURLはここに貼ってください (一番上に移動しました) ▼ -->
     <script>
@@ -87,7 +87,7 @@
 </div>
 
 <div class="header">
-    <h1>🏆 推しランキング</h1>
+    <h1>🏆 推しポスト</h1>
     <button class="account-btn" onclick="openLoginModal()">
         <span id="currentUserDisplay">👤 ログイン</span>
     </button>
@@ -95,7 +95,7 @@
 
 <div class="container" id="main-container">
     <div id="register" class="content active">
-        <p style="color: #666; margin-bottom: 20px;">お気に入りのポストURLを貼り付けて登録しましょう。</p>
+        <p style="color: #666; margin-bottom: 20px;">推しポストのURLを貼り付けて登録しましょう。</p>
         <input type="text" id="postUrl" placeholder="https://x.com/user/status/123..." />
         <button class="primary-btn" onclick="registerData()">登録する</button>
         <div id="regMsg" class="msg"></div>
@@ -371,15 +371,23 @@
                 return;
             }
 
+            let currentCount = -1;
+            let displayRank = 1;
+
             globalRankingData.forEach((user, index) => {
-                const rankNum = index + 1;
-                let rankClass = rankNum === 1 ? "rank-1" : rankNum === 2 ? "rank-2" : rankNum === 3 ? "rank-3" : "";
+                // 件数が前回と違う場合のみ、順位を更新する（同じなら同率順位になる）
+                if (user.count !== currentCount) {
+                    displayRank = index + 1;
+                    currentCount = user.count;
+                }
+                
+                let rankClass = displayRank === 1 ? "rank-1" : displayRank === 2 ? "rank-2" : displayRank === 3 ? "rank-3" : "";
 
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'ranking-item';
                 itemDiv.onclick = () => openModal(user.userId);
                 itemDiv.innerHTML = `
-                    <div class="rank ${rankClass}">${rankNum}</div>
+                    <div class="rank ${rankClass}">${displayRank}</div>
                     <div class="icon" style="background-image: url('https://unavatar.io/twitter/${user.userId}');"></div>
                     <div class="user-info"><p class="user-id">@${user.userId}</p></div>
                     <div class="count-badge">${user.count}件</div>
@@ -450,7 +458,7 @@
             wrapper.innerHTML = `
                 <div class="tweet-meta" style="display: flex; justify-content: space-between; align-items: center;">
                     <span>登録日: ${regDateStr} / 投稿日: ${postDateStr}</span>
-                    <button onclick="deletePost('${p.url}', ${p.row}, this)" style="background:none; border:none; color:#e0245e; cursor:pointer; font-size:12px; font-weight:bold; padding: 2px 6px;">🗑️削除</button>
+                    <button onclick="deletePost('${p.url}', ${p.row}, this)" style="background:none; border:none; color:#e0245e; cursor:pointer; font-size:12px; font-weight:bold; padding: 2px 6px;">🗑️推しポストから削除</button>
                 </div>
                 <blockquote class="twitter-tweet" data-dnt="true" data-theme="light"><a href="${p.url}"></a></blockquote>
             `;
