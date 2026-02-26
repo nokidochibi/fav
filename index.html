@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>推し可視化アプリ</title>
+    <style>
+        /* シンプルでモダンなスタイル */
+        body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { text-align: center; font-size: 1.5rem; color: #1da1f2; }
+        
+        /* タブ切り替え */
+        .tabs { display: flex; border-bottom: 2px solid #ddd; margin-bottom: 20px; }
+        .tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; font-weight: bold; color: #888; }
+        .tab.active { border-bottom: 2px solid #1da1f2; color: #1da1f2; }
+        .content { display: none; }
+        .content.active { display: block; }
+
+        /* 入力フォーム */
+        input[type="text"] { width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #1da1f2; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        button:hover { background: #0c85d0; }
+        .msg { margin-top: 10px; text-align: center; font-size: 0.9rem; }
+
+        /* 可視化エリア */
+        #chart-area { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin-top: 20px; }
+        .bubble {
+            border-radius: 50%;
+            background-size: cover;
+            background-position: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: transform 0.2s;
+            border: 3px solid white;
+        }
+        .bubble:hover { transform: scale(1.1); z-index: 10; }
+        .bubble-badge {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            background: #ff4757;
+            color: white;
+            font-size: 0.8rem;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🏆 推しユーザー可視化</h1>
+
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('register')">登録</div>
+        <div class="tab" onclick="switchTab('visualize')">確認</div>
+    </div>
+
+    <div id="register" class="content active">
+        <p>お気に入りのポストURLを登録しよう</p>
+        <input type="text" id="postUrl" placeholder="https://x.com/user/status/123..." />
+        <button onclick="registerData()">登録する</button>
+        <div id="regMsg" class="msg"></div>
+    </div>
+
+    <div id="visualize" class="content">
+        <p>よく登録されているユーザー順（アイコンの大きさ＝数）</p>
+        <button onclick="loadData()">データを更新</button>
+        <div id="chart-area">
+            </div>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // ▼ ここにGASのウェブアプリURLを貼ってください ▼
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbz0Nj77dTOz9RT4UKd8swnzxGMZKwgI5L3mZboIzwaNIi2IMLwoAZqGt1FrH6dk0nHS6Q/exec";
+    // ==========================================
+
+    // タブ切り替え機能
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+        
+        // 選択されたタブをアクティブに
+        const tabIndex = tabName === 'register' ? 0 : 1;
+        document.querySelectorAll('.tab')[tabIndex].classList.add('active');
+        document.getElementById(tabName).classList.add('active');
+
+        if(tabName === 'visualize') loadData();
+    }
+
+    // データ登録機能
+    function registerData() {
+        const urlInput = document.getElementById('postUrl');
+        const url = urlInput.value;
+        const msg = document.getElementById('regMsg');
+
+        // URLからユーザーIDを抽出する正規表現
+        // x.com または twitter.com の後の最初の文字列を取得
+        const match = url.match(/(x\.com|twitter\.com)\/([^\/]+)\/status/);
+        
+        if (!match || !match[2]) {
+            msg.textContent = "⚠️ 正しいX(Twitter)のURLを入力してください";
+            msg.style.color = "red";
+            return;
+        }
+
+        const userId = match[2];
+        msg.textContent = "送信中...";
+        msg.style.color = "#666";
+
+        // GASへ送信
+        fetch(GAS_URL, {
+            method: 'POST',
+            mode: 'no-cors', // CORSエラー回避のおまじない
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ userId: userId, url: url })
+        }).then(() => {
+            msg.textContent = `✅ @${userId} さんを登録しました！`;
+            msg.style.color = "green";
+            urlInput.value = ""; // 入力欄クリア
+        }).catch(err => {
+            msg.textContent = "エラーが発生しました";
+            console.error(err);
+        });
+    }
+
+    // データ読み込み＆可視化機能
+    async function loadData() {
+        const chartArea = document.getElementById('chart-area');
+        chartArea.innerHTML = "読み込み中...";
+
+        try {
+            const res = await fetch(GAS_URL);
+            const data = await res.json();
+
+            // 集計ロジック（ユーザーIDごとにカウント）
+            const counts = {};
+            data.forEach(item => {
+                counts[item.userId] = (counts[item.userId] || 0) + 1;
+            });
+
+            // HTML生成
+            chartArea.innerHTML = "";
+            
+            // カウントが多い順にソートして表示
+            Object.keys(counts)
+                .sort((a, b) => counts[b] - counts[a])
+                .forEach(userId => {
+                    const count = counts[userId];
+                    const bubble = document.createElement('div');
+                    bubble.className = 'bubble';
+                    
+                    // サイズ計算 (最小60px + カウント数 * 10px)
+                    const size = 60 + (count * 10); 
+                    bubble.style.width = `${size}px`;
+                    bubble.style.height = `${size}px`;
+                    
+                    // unavatar.io を使ってアイコン取得
+                    bubble.style.backgroundImage = `url(https://unavatar.io/twitter/${userId})`;
+                    
+                    // カウントバッジ
+                    const badge = document.createElement('div');
+                    badge.className = 'bubble-badge';
+                    badge.innerText = count;
+                    
+                    bubble.appendChild(badge);
+                    
+                    // クリックでその人のTwitterへ
+                    bubble.onclick = () => window.open(`https://x.com/${userId}`, '_blank');
+                    bubble.title = `@${userId}: ${count}件`; // ホバーでID表示
+
+                    chartArea.appendChild(bubble);
+                });
+
+            if (Object.keys(counts).length === 0) {
+                chartArea.innerHTML = "データがありません";
+            }
+
+        } catch (err) {
+            chartArea.innerHTML = "データの取得に失敗しました";
+            console.error(err);
+        }
+    }
+</script>
+
+</body>
+</html>
